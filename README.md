@@ -8,24 +8,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tests](https://img.shields.io/badge/tests-66%20passing-brightgreen)](https://github.com/plexicus/cli/actions)
 
-<!-- Terminal demo — recording coming soon -->
-```
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ plexicus  v0.1.0  user@example.com                                   ┃
-┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-┃ SEVER   CVE / Name                              Repo          Date   ┃
-┃ ────────────────────────────────────────────────────────────────────  ┃
-┃ CRIT  ▸ CVE-2024-1234 SQL Injection in users    backend   2024-11-01 ┃
-┃ HIGH    CVE-2024-5678 XSS via query param       frontend  2024-11-02 ┃
-┃ HIGH    CVE-2024-9012 Path Traversal            api-gw    2024-11-03 ┃
-┃ MED     CVE-2024-3456 CSRF token missing        web-app   2024-11-04 ┃
-┃ LOW     Outdated dependency (lodash 4.17.15)    infra     2024-11-05 ┃
-┃                                                                      ┃
-┃ 1–5 of 47 findings  (page 1/3 — ] next, [ prev)                     ┃
-┃ [Enter]detail  [r]emediate  [s]uppress  [f]alse-pos  [c]hat  [/]search ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-> Press : for commands, / to search
-```
+<p align="center">
+  <img src="media/demo.gif" alt="Plexicus CLI demo — browse findings, view detail, remediate" width="780" />
+</p>
+
+<sub>↑ Recorded with the CLI in mock mode (<code>MOCK_PLEXICUS=1</code>). Replay it locally with <code>asciinema play media/demo.cast</code>.</sub>
 
 **plexicus** is a terminal UI for [Plexicus ASPM](https://plexicus.ai) — browse security findings, triage vulnerabilities, trigger AI-powered remediations, and open pull requests, all without leaving your terminal.
 
