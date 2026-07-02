@@ -61,6 +61,11 @@ async function loadFixture(name: string): Promise<unknown> {
   return data
 }
 
+function encodeCursor(offset: number): string {
+  return btoa(JSON.stringify({ offset }))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
 function buildFilterQuery(filter: FindingsFilter): URLSearchParams {
   const qs = new URLSearchParams()
 
@@ -243,10 +248,8 @@ export class PlexicusApi {
       return parseFindings(data, repoMap)
     }
     const qs = buildFilterQuery(filter)
-    qs.set('pagination_page', String(page))
-    qs.set('pagination_pageSize', '25')
-    qs.set('pagination_with_count', 'true')
-    qs.set('pagination_active', 'true')
+    qs.set('cursor', encodeCursor(page * 25))
+    qs.set('limit', '25')
     const query = qs.toString() ? `?${qs}` : ''
     const raw = await this.fetch<unknown>('GET', `/findings${query}`, undefined, undefined, 'jsonapi')
     return parseFindings(raw, repoMap)
@@ -331,9 +334,8 @@ export class PlexicusApi {
       return parseRepos(data)
     }
     const qs = new URLSearchParams({
-      pagination_page: String(page),
-      pagination_pageSize: '100',
-      pagination_with_count: 'true',
+      cursor: encodeCursor(page * 25),
+      limit: '25',
     })
     if (sourceControl) qs.set('filters[source_control]', sourceControl)
     const raw = await this.fetch<unknown>('GET', `/repositories?${qs}`, undefined, undefined, 'jsonapi')
