@@ -224,13 +224,14 @@ export class PlexicusApi {
     return this.fetch<SessionUser>('GET', '/sessions/self', undefined, SessionUserSchema, 'raw')
   }
 
-  async verify2FA(secret: string, otp_code: string): Promise<string> {
+  async verify2FA(email: string, otp_code: string): Promise<string> {
     if (MOCK_MODE) {
       const data = await loadFixture('login')
       const parsed = LoginResponseFlatSchema.parse(data)
       return parsed.access_token
     }
-    const raw = await this.fetch<unknown>('POST', '/sessions/self/2fa-verifications', { otp_code }, undefined, 'raw')
+    // email identifies the user: at login-time 2FA there is no Bearer token yet
+    const raw = await this.fetch<unknown>('POST', '/sessions/self/2fa-verifications', { otp_code, email }, undefined, 'raw')
     const parsed = Verify2FAResponseSchema.parse(raw)
     if (!parsed.verify_otp || !parsed.access_token) {
       throw new PlexicusAuthError()
