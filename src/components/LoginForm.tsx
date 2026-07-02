@@ -9,9 +9,10 @@ type LoginStep = 'email' | 'password' | 'otp' | 'loading' | 'done'
 
 interface LoginFormProps {
   prefilledToken?: string  // from --token flag
+  onDone?: (email: string) => void  // login subcommand: print + exit
 }
 
-export function LoginForm({ prefilledToken }: LoginFormProps) {
+export function LoginForm({ prefilledToken, onDone }: LoginFormProps) {
   const { dispatch } = useAppState()
   const [step, setStep] = useState<LoginStep>(prefilledToken ? 'loading' : 'email')
   const [email, setEmail] = useState('')
@@ -53,6 +54,7 @@ export function LoginForm({ prefilledToken }: LoginFormProps) {
         await saveConfig({ ...config, token: prefilledToken! })
         dispatch({ type: 'auth/set', payload: { user, token: prefilledToken! } })
         setStep('done')
+        onDone?.(user.email)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Invalid token')
         setStep('email')
@@ -88,6 +90,7 @@ export function LoginForm({ prefilledToken }: LoginFormProps) {
       await saveConfig({ ...config, token: response.access_token })
       dispatch({ type: 'auth/set', payload: { user: sessionUser, token: response.access_token } })
       setStep('done')
+      onDone?.(sessionUser.email)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
       setStep('password')
@@ -108,6 +111,7 @@ export function LoginForm({ prefilledToken }: LoginFormProps) {
       await saveConfig({ ...config, token: accessToken })
       dispatch({ type: 'auth/set', payload: { user: sessionUser, token: accessToken } })
       setStep('done')
+      onDone?.(sessionUser.email)
     } catch (err) {
       setError(err instanceof Error ? err.message : '2FA verification failed')
       setStep('otp')

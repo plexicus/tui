@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Text, useInput } from 'ink'
 
 interface SmartTextInputProps {
@@ -20,6 +20,13 @@ export function SmartTextInput({
 }: SmartTextInputProps) {
   const [cursor, setCursor] = useState(value.length)
 
+  // Latest value, updated synchronously on edits: a paste followed immediately
+  // by Enter would otherwise submit the pre-paste value from a stale closure
+  const latestValue = useRef(value)
+  useEffect(() => {
+    latestValue.current = value
+  }, [value])
+
   useEffect(() => {
     setCursor(c => Math.min(c, value.length))
   }, [value.length])
@@ -36,35 +43,57 @@ export function SmartTextInput({
     if (key.ctrl && (input === 'u' || input === 'k')) {
       // Ctrl+U: clear to beginning from cursor; Ctrl+K: clear to end
       // Without true cursor-aware editing we treat both as clear-all for simplicity
+      latestValue.current = ''
       onChange('')
       setCursor(0)
       return
     }
     if (key.ctrl && input === 'w') {
-      const before = value.slice(0, cursor)
+      const base = latestValue.current
+      const at = Math.min(cursor, base.length)
+      const before = base.slice(0, at)
       const trimmed = before.trimEnd()
       const lastSpace = trimmed.lastIndexOf(' ')
       const newBefore = lastSpace >= 0 ? trimmed.slice(0, lastSpace + 1) : ''
-      onChange(newBefore + value.slice(cursor))
+      const next = newBefore + base.slice(at)
+      latestValue.current = next
+      onChange(next)
       setCursor(newBefore.length)
       return
     }
 
     if (key.backspace || key.delete) {
-      if (cursor > 0) {
-        onChange(value.slice(0, cursor - 1) + value.slice(cursor))
-        setCursor(c => c - 1)
+      const base = latestValue.current
+      const at = Math.min(cursor, base.length)
+      if (at > 0) {
+        const next = base.slice(0, at - 1) + base.slice(at)
+        latestValue.current = next
+        onChange(next)
+        setCursor(at - 1)
       }
       return
     }
     if (key.return) {
-      onSubmit?.(value)
+      onSubmit?.(latestValue.current)
       return
     }
-    if (!key.ctrl && !key.meta && input && input.length === 1) {
-      const next = value.slice(0, cursor) + input + value.slice(cursor)
-      onChange(next)
-      setCursor(c => c + 1)
+    if (!key.ctrl && !key.meta && input) {
+      // Pasted text arrives as one multi-char chunk — strip control chars and insert whole.
+      // A newline inside the chunk (paste of a full line) means insert-then-submit.
+      const hasNewline = input.includes('\r') || input.includes('\n')
+      const clean = [...input].filter(ch => {
+        const code = ch.charCodeAt(0)
+        return code >= 32 && code !== 127
+      }).join('')
+      if (clean) {
+        const base = latestValue.current
+        const at = Math.min(cursor, base.length)
+        const next = base.slice(0, at) + clean + base.slice(at)
+        latestValue.current = next
+        onChange(next)
+        setCursor(c => c + clean.length)
+      }
+      if (hasNewline) onSubmit?.(latestValue.current)
     }
   })
 

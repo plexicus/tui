@@ -40,8 +40,13 @@ program
     const { LoginForm } = await import('./components/LoginForm.js')
     const config = await loadConfig()
 
+    const onDone = (email: string) => {
+      console.log(chalk.green(`✓ Authenticated as ${email}`))
+      process.exit(0)
+    }
+
     if (options.token) {
-      const loginEl = React.createElement(LoginForm, { prefilledToken: options.token })
+      const loginEl = React.createElement(LoginForm, { prefilledToken: options.token, onDone })
       render(React.createElement(AppStateProvider, { initialTheme: config.theme, children: loginEl }))
       return
     }
@@ -68,7 +73,7 @@ program
       console.warn(chalk.gray('  Set it with: plexicus config set webUrl https://your-app-domain'))
     }
 
-    const loginEl = React.createElement(LoginForm, {})
+    const loginEl = React.createElement(LoginForm, { onDone })
     render(React.createElement(AppStateProvider, { initialTheme: config.theme, children: loginEl }))
   })
 
