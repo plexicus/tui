@@ -84,15 +84,15 @@ export const SingleFindingResponseSchema = z.object({
 const RepoAttributesSchema = z.object({
   nickname: z.string(),
   uri: z.string(),
-  active: z.boolean().default(true),
-  repo_type: z.string().default('github'),
-  status: z.string().default('active'),
+  active: z.boolean().nullish().transform(v => v ?? true),
+  repo_type: z.string().nullish().transform(v => v ?? 'github'),
+  status: z.string().nullish().transform(v => v ?? 'active'),
   data: z.object({
-    branch: z.string().optional(),
-    source_control: z.string().optional(),
-    url: z.string().optional(),
-    tags: z.array(z.string()).optional(),
-  }).optional(),
+    branch: z.string().nullish(),
+    source_control: z.string().nullish(),
+    url: z.string().nullish(),
+    tags: z.array(z.string()).nullish(),
+  }).nullish(),
   findings: z.object({
     total: z.number().default(0),
     critical: z.number().default(0),

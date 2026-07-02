@@ -28,7 +28,7 @@
       "attributes": {
         "nickname": "backend-core",
         "uri": "https://github.com/plexicus/backend-core",
-        "active": true,
+        "active": null,
         "repo_type": "github",
         "status": "active",
         "data": {
@@ -54,11 +54,7 @@
         "active": true,
         "repo_type": "github",
         "status": "active",
-        "data": {
-          "branch": "main",
-          "source_control": "github",
-          "tags": []
-        },
+        "data": null,
         "findings": {
           "total": 15,
           "critical": 0,
