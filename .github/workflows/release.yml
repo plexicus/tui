@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          bun build src/main.tsx --compile --target=bun-darwin-arm64 --outfile dist/plexicus-darwin-arm64
+          bun build src/main.tsx --compile --target=bun-darwin-x64 --outfile dist/plexicus-darwin-x64
+          bun build src/main.tsx --compile --target=bun-linux-x64 --outfile dist/plexicus-linux-x64
+      - name: Checksums
+        run: cd dist && sha256sum plexicus-* > SHA256SUMS
+      - name: Create release
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/plexicus-darwin-arm64 dist/plexicus-darwin-x64 dist/plexicus-linux-x64 dist/SHA256SUMS \
+            --title "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
