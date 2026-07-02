@@ -6,7 +6,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/plexicus/tui?label=release)](https://github.com/plexicus/tui/releases/latest)
 [![Bun](https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun&logoColor=black)](https://bun.sh)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/tests-54%20passing-brightgreen)](https://github.com/plexicus/tui/actions)
+[![CI](https://github.com/plexicus/tui/actions/workflows/ci.yml/badge.svg)](https://github.com/plexicus/tui/actions/workflows/ci.yml)
 
 <p align="center">
   <img src="media/demo.gif" alt="Plexicus TUI demo — browse findings, view detail, remediate" width="780" />
