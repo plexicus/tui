@@ -38,7 +38,10 @@ program
     const { loadConfig, saveConfig } = await import('./services/config.js')
     const { AppStateProvider } = await import('./state/AppState.js')
     const { LoginForm } = await import('./components/LoginForm.js')
+    const { printSplash } = await import('./assets/splash.js')
     const config = await loadConfig()
+
+    printSplash(version, config.serverUrl)
 
     const onDone = (email: string) => {
       console.log(chalk.green(`✓ Authenticated as ${email}`))
@@ -108,7 +111,10 @@ program
   .action(async () => {
     const { loadConfig } = await import('./services/config.js')
     const { default: App } = await import('./components/App.js')
+    const { printSplash } = await import('./assets/splash.js')
     const config = await loadConfig()
+
+    printSplash(version, config.serverUrl)
     const token = process.env.PLEXICUS_TOKEN ?? config.token
     render(React.createElement(App, { config, token }))
   })
