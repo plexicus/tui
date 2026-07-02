@@ -1,6 +1,6 @@
 {
   "name": "plexicus",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Plexicus ASPM TUI — security posture at your fingertips",
   "type": "module",
   "bin": {
