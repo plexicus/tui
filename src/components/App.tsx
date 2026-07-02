@@ -197,8 +197,13 @@ function AppShell(props: AppProps) {
         handleReplSubmit(current)
         return
       }
-      if (!key.ctrl && !key.meta && input && input.length === 1) {
-        setReplInput(prev => prev + input)
+      if (!key.ctrl && !key.meta && input) {
+        // Accept pasted multi-char chunks, not just single keystrokes
+        const clean = [...input].filter(ch => {
+          const code = ch.charCodeAt(0)
+          return code >= 32 && code !== 127
+        }).join('')
+        if (clean) setReplInput(prev => prev + clean)
         return
       }
     }

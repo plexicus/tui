@@ -179,12 +179,23 @@ export class PlexicusApi {
     envelope: EnvelopeMode = 'auto',
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`
-    const res = await fetch(url, {
-      method,
-      headers: this.headers(),
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    })
-    if (res.status === 401) throw new PlexicusAuthError()
+    let res: Response
+    try {
+      res = await fetch(url, {
+        method,
+        headers: this.headers(),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      throw new PlexicusApiError(`${msg} (${url})`, 0, path)
+    }
+    if (res.status === 401) {
+      const detail = await res.text()
+        .then(t => JSON.parse(t).detail as unknown)
+        .catch(() => undefined)
+      throw new PlexicusAuthError(typeof detail === 'string' ? detail : undefined)
+    }
     if (!res.ok) {
       const text = await res.text().catch(() => '')
       throw new PlexicusApiError(`${method} ${path} failed: ${text}`, res.status, path)
