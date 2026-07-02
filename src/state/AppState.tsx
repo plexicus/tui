@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, type ReactNode } from 'react'
-import type { Finding, Repository, Remediation, ChatMessage, Panel, InputMode, SessionUser, StatusJob, Screen } from '../types.js'
+import type { Finding, Repository, Remediation, Panel, InputMode, SessionUser, StatusJob, Screen } from '../types.js'
 import type { Action, FindingsFilter } from './actions.js'
 
 export interface AppState {
@@ -16,8 +16,6 @@ export interface AppState {
   repos: Repository[]
   reposLoading: boolean
   remediations: Record<string, Remediation>
-  chatMessages: ChatMessage[]
-  chatStreaming: boolean
   activePanel: Panel
   inputMode: InputMode
   fuzzyOpen: boolean
@@ -31,8 +29,6 @@ export interface AppState {
   screen: Screen
   screenStack: Screen[]
   selectedRepoId: string | null
-  aiModalOpen: boolean
-  aiModalPrompt: string | null
 }
 
 const initialState: AppState = {
@@ -49,8 +45,6 @@ const initialState: AppState = {
   repos: [],
   reposLoading: false,
   remediations: {},
-  chatMessages: [],
-  chatStreaming: false,
   activePanel: 'repos',
   inputMode: 'navigation',
   fuzzyOpen: false,
@@ -64,8 +58,6 @@ const initialState: AppState = {
   screen: 'repos',
   screenStack: ['repos'],
   selectedRepoId: null,
-  aiModalOpen: false,
-  aiModalPrompt: null,
 }
 
 function reducer(state: AppState, action: Action): AppState {
@@ -110,30 +102,6 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         remediations: { ...state.remediations, [action.payload.finding_id]: action.payload },
       }
-
-    case 'chat/append':
-      return { ...state, chatMessages: [...state.chatMessages, action.payload] }
-
-    case 'chat/streaming':
-      return { ...state, chatStreaming: action.payload }
-
-    case 'chat/chunk': {
-      const { messageIndex, chunk } = action.payload
-      const msgs = state.chatMessages.map((m, i) =>
-        i === messageIndex ? { ...m, content: m.content + chunk } : m
-      )
-      return { ...state, chatMessages: msgs }
-    }
-
-    case 'chat/done':
-      return {
-        ...state,
-        chatStreaming: false,
-        chatMessages: state.chatMessages.map(m => ({ ...m, streaming: false })),
-      }
-
-    case 'chat/clear':
-      return { ...state, chatMessages: [] }
 
     case 'ui/setPanel':
       return { ...state, activePanel: action.payload }
@@ -199,12 +167,6 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'repo/select':
       return { ...state, selectedRepoId: action.payload }
-
-    case 'ai/open':
-      return { ...state, aiModalOpen: true, aiModalPrompt: action.payload ?? null }
-
-    case 'ai/close':
-      return { ...state, aiModalOpen: false, aiModalPrompt: null }
 
     default:
       return state

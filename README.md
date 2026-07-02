@@ -3,16 +3,16 @@
 > Security findings & remediation, right in your terminal.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![GitHub release](https://img.shields.io/github/v/release/plexicus/cli?label=release)](https://github.com/plexicus/cli/releases/latest)
+[![GitHub release](https://img.shields.io/github/v/release/plexicus/tui?label=release)](https://github.com/plexicus/tui/releases/latest)
 [![Bun](https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun&logoColor=black)](https://bun.sh)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/tests-66%20passing-brightgreen)](https://github.com/plexicus/cli/actions)
+[![Tests](https://img.shields.io/badge/tests-66%20passing-brightgreen)](https://github.com/plexicus/tui/actions)
 
 <p align="center">
-  <img src="media/demo.gif" alt="Plexicus CLI demo — browse findings, view detail, remediate" width="780" />
+  <img src="media/demo.gif" alt="Plexicus TUI demo — browse findings, view detail, remediate" width="780" />
 </p>
 
-<sub>↑ Recorded with the CLI in mock mode (<code>MOCK_PLEXICUS=1</code>). Replay it locally with <code>asciinema play media/demo.cast</code>.</sub>
+<sub>↑ Recorded with the TUI in mock mode (<code>MOCK_PLEXICUS=1</code>). Replay it locally with <code>asciinema play media/demo.cast</code>.</sub>
 
 **plexicus** is a terminal UI for [Plexicus ASPM](https://plexicus.ai) — browse security findings, triage vulnerabilities, trigger AI-powered remediations, and open pull requests, all without leaving your terminal.
 
@@ -33,7 +33,7 @@
 - [REPL commands](#repl-commands)
 - [AI chat setup](#ai-chat-setup)
 - [Configuration](#configuration)
-- [CLI reference](#cli-reference)
+- [Command reference](#command-reference)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -58,19 +58,19 @@
 
 ## Installation
 
-Download the latest binary for your platform from the [releases page](https://github.com/plexicus/cli/releases/latest):
+Download the latest binary for your platform from the [releases page](https://github.com/plexicus/tui/releases/latest):
 
 ```bash
 # macOS (Apple Silicon)
-curl -fsSL https://github.com/plexicus/cli/releases/latest/download/plexicus-darwin-arm64 \
+curl -fsSL https://github.com/plexicus/tui/releases/latest/download/plexicus-darwin-arm64 \
   -o plexicus && chmod +x plexicus && sudo mv plexicus /usr/local/bin/
 
 # macOS (Intel)
-curl -fsSL https://github.com/plexicus/cli/releases/latest/download/plexicus-darwin-x64 \
+curl -fsSL https://github.com/plexicus/tui/releases/latest/download/plexicus-darwin-x64 \
   -o plexicus && chmod +x plexicus && sudo mv plexicus /usr/local/bin/
 
 # Linux (x86-64)
-curl -fsSL https://github.com/plexicus/cli/releases/latest/download/plexicus-linux-x64 \
+curl -fsSL https://github.com/plexicus/tui/releases/latest/download/plexicus-linux-x64 \
   -o plexicus && chmod +x plexicus && sudo mv plexicus /usr/local/bin/
 ```
 
@@ -92,7 +92,7 @@ plexicus --version
 plexicus login
 ```
 
-When `webUrl` is configured (or derived from `serverUrl`), this opens your browser to the Plexicus web app which mints a CLI token automatically — no copy-pasting. Once authorized, the token is saved and you return to the terminal.
+When `webUrl` is configured (or derived from `serverUrl`), this opens your browser to the Plexicus web app which mints an API token automatically — no copy-pasting. Once authorized, the token is saved and you return to the terminal.
 
 Use `--headless` to skip the browser flow and enter email/password directly:
 
@@ -405,7 +405,7 @@ All configuration is stored in `~/.config/plexicus/config.json`. Modify it with 
 
 Keys passed to `plexicus config set` use snake_case aliases (`llm.api_key`, `llm.base_url`). They are normalized to camelCase when written to the JSON file (`llm.apiKey`, `llm.baseUrl`).
 
-| Key (CLI / `config set`) | Key (JSON file) | Description | Default |
+| Key (command line / `config set`) | Key (JSON file) | Description | Default |
 |--------------------------|-----------------|-------------|---------|
 | `serverUrl` | `serverUrl` | Plexicus REST API base URL | `https://api.app.plexicus.ai` |
 | `webUrl` | `webUrl` | Web frontend URL — used for browser-based login (`plexicus login`) and OAuth flows | derived from `serverUrl` |
@@ -435,7 +435,7 @@ Example `~/.config/plexicus/config.json`:
 
 ---
 
-## CLI reference
+## Command reference
 
 ### `plexicus` (default — opens TUI)
 

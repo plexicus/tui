@@ -18,7 +18,6 @@ export function LoginForm({ prefilledToken }: LoginFormProps) {
   const [password, setPassword] = useState('')
   const [otp, setOtp] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [otpSecret, setOtpSecret] = useState<string | null>(null)
   const [registerUrl, setRegisterUrl] = useState<string | null>(null)
 
   const openRegistration = useCallback(async () => {
@@ -81,7 +80,6 @@ export function LoginForm({ prefilledToken }: LoginFormProps) {
       const response = await api.login(email, value.trim())
 
       if (response.kind === '2fa') {
-        setOtpSecret(response.secret)
         setStep('otp')
         return
       }
@@ -105,7 +103,7 @@ export function LoginForm({ prefilledToken }: LoginFormProps) {
     try {
       const config = await loadConfig()
       const api = new PlexicusApi({ baseUrl: config.serverUrl })
-      const accessToken = await api.verify2FA(otpSecret ?? '', value.trim())
+      const accessToken = await api.verify2FA(email, value.trim())
       const sessionUser = await new PlexicusApi({ baseUrl: config.serverUrl, token: accessToken }).getSession()
       await saveConfig({ ...config, token: accessToken })
       dispatch({ type: 'auth/set', payload: { user: sessionUser, token: accessToken } })
@@ -114,7 +112,7 @@ export function LoginForm({ prefilledToken }: LoginFormProps) {
       setError(err instanceof Error ? err.message : '2FA verification failed')
       setStep('otp')
     }
-  }, [otpSecret, dispatch])
+  }, [email, dispatch])
 
   if (step === 'done') return null
 

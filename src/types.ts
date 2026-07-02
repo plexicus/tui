@@ -98,15 +98,9 @@ export interface SessionUser {
   email: string
 }
 
-export interface ChatMessage {
-  role: 'user' | 'assistant'
-  content: string
-  streaming?: boolean
-}
+export type Panel = 'findings' | 'repos'
 
-export type Panel = 'findings' | 'repos' | 'chat'
-
-export type InputMode = 'navigation' | 'repl' | 'chat' | 'login' | 'filter' | 'scm'
+export type InputMode = 'navigation' | 'repl' | 'login' | 'filter' | 'scm'
 
 export type ScmProvider = 'github' | 'gitlab' | 'bitbucket' | 'gitea'
 

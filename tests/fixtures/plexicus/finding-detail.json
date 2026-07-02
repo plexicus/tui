@@ -1,5 +1,5 @@
 {
-  "data": [
+  "items": [
     {
       "id": "f-001",
       "attributes": {
@@ -38,12 +38,7 @@
       }
     }
   ],
-  "meta": {
-    "pagination": {
-      "page": 1,
-      "pageCount": 1,
-      "pageSize": 25,
-      "total": 1
-    }
-  }
+  "next": null,
+  "prev": null,
+  "total": 1
 }

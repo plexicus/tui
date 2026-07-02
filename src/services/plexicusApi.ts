@@ -61,6 +61,11 @@ async function loadFixture(name: string): Promise<unknown> {
   return data
 }
 
+function encodeCursor(offset: number): string {
+  return btoa(JSON.stringify({ offset }))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
 function buildFilterQuery(filter: FindingsFilter): URLSearchParams {
   const qs = new URLSearchParams()
 
@@ -112,21 +117,22 @@ function buildFilterQuery(filter: FindingsFilter): URLSearchParams {
 
 function parseFindings(raw: unknown, repoMap?: Map<string, string>): FindingsResult {
   const parsed = FindingsResponseSchema.parse(raw)
-  const findings: Finding[] = parsed.data.map(item => ({
+  const findings: Finding[] = parsed.items.map(item => ({
     id: item.id,
     repo_nickname: repoMap?.get(item.attributes.repo_id) ?? null,
     ...item.attributes,
   }))
+  const total = parsed.total ?? findings.length
   return {
     findings,
-    total: parsed.meta?.pagination.total ?? findings.length,
-    pageCount: parsed.meta?.pagination.pageCount ?? 1,
+    total,
+    pageCount: Math.ceil(total / 25) || 1,
   }
 }
 
 function parseRepos(raw: unknown): ReposResult {
   const parsed = RepositoriesResponseSchema.parse(raw)
-  const repos: Repository[] = parsed.data.map(item => ({
+  const repos: Repository[] = parsed.items.map(item => ({
     id: item.id,
     nickname: item.attributes.nickname,
     uri: item.attributes.uri,
@@ -142,7 +148,7 @@ function parseRepos(raw: unknown): ReposResult {
   }))
   return {
     repos,
-    total: parsed.meta?.pagination.total ?? repos.length,
+    total: parsed.total ?? repos.length,
   }
 }
 
@@ -196,7 +202,7 @@ export class PlexicusApi {
       const parsed = LoginResponseFlatSchema.parse(data)
       return { kind: 'ok', access_token: parsed.access_token, token_type: parsed.token_type }
     }
-    const raw = await this.fetch<unknown>('POST', '/login', { email, password }, undefined, 'raw')
+    const raw = await this.fetch<unknown>('POST', '/sessions', { email, password }, undefined, 'raw')
     const parsed = LoginResponseUnion.parse(raw)
     if ('requires_2fa' in parsed && parsed.requires_2fa) {
       return { kind: '2fa', secret: parsed.otp_data.secret }
@@ -207,7 +213,7 @@ export class PlexicusApi {
 
   async logout(): Promise<void> {
     if (MOCK_MODE) return
-    await this.fetch<void>('POST', '/logout')
+    await this.fetch<void>('DELETE', '/sessions/self')
   }
 
   async getSession(): Promise<SessionUser> {
@@ -215,16 +221,17 @@ export class PlexicusApi {
       const data = await loadFixture('session')
       return SessionUserSchema.parse(data)
     }
-    return this.fetch<SessionUser>('GET', '/session', undefined, SessionUserSchema, 'raw')
+    return this.fetch<SessionUser>('GET', '/sessions/self', undefined, SessionUserSchema, 'raw')
   }
 
-  async verify2FA(secret: string, otp_code: string): Promise<string> {
+  async verify2FA(email: string, otp_code: string): Promise<string> {
     if (MOCK_MODE) {
       const data = await loadFixture('login')
       const parsed = LoginResponseFlatSchema.parse(data)
       return parsed.access_token
     }
-    const raw = await this.fetch<unknown>('POST', '/verify-session', { secret, otp_code }, undefined, 'raw')
+    // email identifies the user: at login-time 2FA there is no Bearer token yet
+    const raw = await this.fetch<unknown>('POST', '/sessions/self/2fa-verifications', { otp_code, email }, undefined, 'raw')
     const parsed = Verify2FAResponseSchema.parse(raw)
     if (!parsed.verify_otp || !parsed.access_token) {
       throw new PlexicusAuthError()
@@ -242,10 +249,8 @@ export class PlexicusApi {
       return parseFindings(data, repoMap)
     }
     const qs = buildFilterQuery(filter)
-    qs.set('pagination_page', String(page))
-    qs.set('pagination_pageSize', '25')
-    qs.set('pagination_with_count', 'true')
-    qs.set('pagination_active', 'true')
+    qs.set('cursor', encodeCursor(page * 25))
+    qs.set('limit', '25')
     const query = qs.toString() ? `?${qs}` : ''
     const raw = await this.fetch<unknown>('GET', `/findings${query}`, undefined, undefined, 'jsonapi')
     return parseFindings(raw, repoMap)
@@ -275,13 +280,13 @@ export class PlexicusApi {
 
   async toggleFalsePositive(id: string): Promise<void> {
     if (MOCK_MODE) return
-    await this.fetch<void>('PUT', `/findings/${id}/toggle_false_positive`, undefined, undefined, 'raw')
+    await this.fetch<void>('PUT', `/findings/${id}/false-positive`, undefined, undefined, 'raw')
   }
 
   async createRemediation(findingId: string): Promise<void> {
     if (MOCK_MODE) return
     // POST returns 202; poll getRemediations or wait for WS event for actual state
-    await this.fetch<void>('POST', '/remediations', { finding_id: findingId }, undefined, 'raw')
+    await this.fetch<void>('POST', '/remediations', { finding_id: findingId, auto_create: false }, undefined, 'raw')
   }
 
   async getRemediations(findingId?: string): Promise<Remediation[]> {
@@ -321,7 +326,7 @@ export class PlexicusApi {
   async createPR(remediationId: string): Promise<void> {
     if (MOCK_MODE) return
     if (!remediationId) throw new Error('Cannot create PR: remediation ID is missing')
-    await this.fetch<void>('POST', '/pull_request', { remediation_id: remediationId }, undefined, 'raw')
+    await this.fetch<void>('POST', '/pull-requests', { remediation_id: remediationId }, undefined, 'raw')
   }
 
   async getRepositories(page = 0, sourceControl?: string): Promise<ReposResult> {
@@ -330,9 +335,8 @@ export class PlexicusApi {
       return parseRepos(data)
     }
     const qs = new URLSearchParams({
-      pagination_page: String(page),
-      pagination_pageSize: '100',
-      pagination_with_count: 'true',
+      cursor: encodeCursor(page * 25),
+      limit: '25',
     })
     if (sourceControl) qs.set('filters[source_control]', sourceControl)
     const raw = await this.fetch<unknown>('GET', `/repositories?${qs}`, undefined, undefined, 'jsonapi')
@@ -356,14 +360,14 @@ export class PlexicusApi {
   // Only 'github' is valid until the backend exposes equivalent routes.
   async getOAuthUrl(provider: 'github'): Promise<string> {
     if (MOCK_MODE) return `https://github.com/login/oauth/authorize?mock=1`
-    const data = await this.fetch<{ oauth_url: string }>('GET', '/request-oauth-github', undefined, undefined, 'raw')
+    const data = await this.fetch<{ oauth_url: string }>('GET', '/oauth/github/authorization', undefined, undefined, 'raw')
     return data.oauth_url
   }
 
   async checkScmValidity(): Promise<Record<string, boolean>> {
     if (MOCK_MODE) return { github: false, gitlab: false, bitbucket: false, gitea: false }
     // Response shape: { status: bool, message: str, data: { github: bool, ... } }
-    const raw = await this.fetch<unknown>('GET', '/integrations/scm/check_validity', undefined, undefined, 'raw')
+    const raw = await this.fetch<unknown>('GET', '/integrations/scm/validity', undefined, undefined, 'raw')
     if (raw && typeof raw === 'object' && 'data' in raw && raw.data && typeof raw.data === 'object') {
       return raw.data as Record<string, boolean>
     }
@@ -384,7 +388,7 @@ export class PlexicusApi {
       const qs = new URLSearchParams({ page: String(page), per_page: String(PER_PAGE) })
       if (baseUrl) qs.set('custom_domain', baseUrl)
       // fetch() auto-unwraps { success, data: {...} } → raw IS { repositories: [...], total_count, ... }
-      const raw = await this.fetch<unknown>('GET', `/vulnerability_tool/repositories/${provider}?${qs}`)
+      const raw = await this.fetch<unknown>('GET', `/vulnerability-tool/repositories/${provider}?${qs}`)
       const envelope = raw as Record<string, any>
       const repos: any[] = Array.isArray(envelope?.repositories)
         ? envelope.repositories
@@ -416,7 +420,7 @@ export class PlexicusApi {
         port,
       }, undefined, 'raw')
       // save_token registers the encoded token in the auth system
-      await this.fetch<void>('POST', '/save_token', {
+      await this.fetch<void>('POST', '/scm-tokens', {
         token: `${url.protocol.replace(':', '')}:${token}:${url.hostname}:${port}`,
         source_control: 'gitea',
       }, undefined, 'raw')
@@ -438,7 +442,7 @@ export class PlexicusApi {
 
   async testScmConnection(provider: string): Promise<boolean> {
     if (MOCK_MODE) return true
-    const data = await this.fetch<{ success: boolean }>('GET', `/integrations/scm/test_connection/${provider}`, undefined, undefined, 'raw')
+    const data = await this.fetch<{ success: boolean }>('POST', `/integrations/scm/connections/${provider}/tests`, undefined, undefined, 'raw')
     return data.success
   }
 
@@ -458,11 +462,11 @@ export class PlexicusApi {
         },
       },
     }))
-    await this.fetch<void>('POST', '/create_repository_with_list', { data, source_control: sourceControl }, undefined, 'raw')
+    await this.fetch<void>('POST', '/repositories/bulk', { data, source_control: sourceControl }, undefined, 'raw')
   }
 
   async requestScan(repositoryId: string, scanType: string = 'app'): Promise<void> {
     if (MOCK_MODE) return
-    await this.fetch<void>('POST', '/request_repo_scan', { repository_id: repositoryId, scan_type: scanType }, undefined, 'raw')
+    await this.fetch<void>('POST', '/repository-scans', { repository_id: repositoryId, scan_type: scanType }, undefined, 'raw')
   }
 }

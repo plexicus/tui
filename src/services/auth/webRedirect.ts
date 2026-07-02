@@ -14,7 +14,7 @@ const PORT_MIN = 9100
 const PORT_MAX = 9199
 
 const SUCCESS_HTML = `<html><body style="font-family:sans-serif;text-align:center;padding:4em">
-  <h1>Plexicus CLI authorized</h1>
+  <h1>Plexicus TUI authorized</h1>
   <p>You can close this tab and return to your terminal.</p>
 </body></html>`
 

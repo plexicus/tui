@@ -6,7 +6,6 @@ import { KeybindingsHelp } from './design-system/KeybindingsHelp.js'
 import { FindingsPanel } from './FindingsPanel.js'
 import { ReposPanel } from './ReposPanel.js'
 import { FindingDetailScreen } from './FindingDetailScreen.js'
-import { AIModal } from './AIModal.js'
 import { FilterModal } from './FilterModal.js'
 import { StatusModal } from './StatusModal.js'
 import { LoginForm } from './LoginForm.js'
@@ -50,7 +49,7 @@ function AuthGate({
 
 function AppShell(props: AppProps) {
   const { state, dispatch } = useAppState()
-  useWebSocket(props.config ?? { serverUrl: 'https://api.app.plexicus.ai', llm: {}, theme: 'plexicus' })
+  useWebSocket(props.config ?? { serverUrl: 'https://api.app.plexicus.ai', theme: 'plexicus' })
   const { exit } = useApp()
   const [replInput, setReplInput] = useState('')
   const [replOutput, setReplOutput] = useState<string | null>(null)
@@ -98,7 +97,7 @@ function AppShell(props: AppProps) {
     if (state.inputMode === 'filter') return
     if (state.inputMode === 'scm') return
 
-    if (input === '?' && (state.inputMode === 'navigation' || state.inputMode === 'chat')) {
+    if (input === '?' && state.inputMode === 'navigation') {
       setShowHelp(true)
       return
     }
@@ -281,11 +280,8 @@ function AppShell(props: AppProps) {
           return
         }
 
-        // Smart REPL: unknown input → route to AI modal
-        dispatch({ type: 'chat/clear' })
-        dispatch({ type: 'ai/open', payload: trimmed })
-        dispatch({ type: 'ui/setInputMode', payload: 'chat' })
-        setReplOutput(null)
+        setReplOutput(`Unknown command: ${cmdName} — type :help for available commands`)
+        dispatch({ type: 'ui/setInputMode', payload: 'navigation' })
       } catch (err) {
         setReplOutput(err instanceof Error ? err.message : 'Command failed')
         dispatch({ type: 'ui/setInputMode', payload: 'navigation' })
@@ -340,9 +336,8 @@ function AppShell(props: AppProps) {
         }
       </Box>
 
-      {/* Modals rendered outside flex-grow (status + AI use their own layout) */}
+      {/* Modals rendered outside flex-grow (status uses its own layout) */}
       {state.activeStatusJob && <StatusModal />}
-      {state.aiModalOpen && <AIModal />}
 
       {/* REPL output */}
       {replOutput && (
