@@ -6,7 +6,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/plexicus/tui?label=release)](https://github.com/plexicus/tui/releases/latest)
 [![Bun](https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun&logoColor=black)](https://bun.sh)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/tests-66%20passing-brightgreen)](https://github.com/plexicus/tui/actions)
+[![Tests](https://img.shields.io/badge/tests-54%20passing-brightgreen)](https://github.com/plexicus/tui/actions)
 
 <p align="center">
   <img src="media/demo.gif" alt="Plexicus TUI demo — browse findings, view detail, remediate" width="780" />
@@ -26,12 +26,10 @@
   - [Findings panel](#findings-panel)
   - [Repos panel](#repos-panel)
   - [SCM integration](#scm-integration)
-  - [AI chat sidebar](#ai-chat-sidebar)
   - [Detail pane](#detail-pane)
   - [Real-time status modal](#real-time-status-modal)
 - [Keyboard reference](#keyboard-reference)
 - [REPL commands](#repl-commands)
-- [AI chat setup](#ai-chat-setup)
 - [Configuration](#configuration)
 - [Command reference](#command-reference)
 - [Contributing](#contributing)
@@ -46,10 +44,9 @@
 - **SCM integration** — connect GitHub, GitLab, Bitbucket Cloud, and Gitea directly from the TUI; OAuth providers open your browser automatically with no token copy-pasting
 - **Real-time status modal** — live WebSocket progress bar and log stream while repos are scanned or AI remediations are generated
 - **Filter modal** — interactive multi-dimensional filter: severity, repository, status, type, CVSS range, priority, language, category, CWE IDs, false positives
-- **AI chat sidebar** — ask questions about your findings using Claude or OpenAI; context-aware, streams live
 - **Remediation workflow** — request AI-generated remediations, review diffs, and open pull requests from the TUI
 - **Fuzzy search** — instantly filter findings by name, CVE ID, or repository
-- **REPL command bar** — `:ask`, `:filter`, `:theme` without touching a config file
+- **REPL command bar** — `:filter`, `:scan`, `:theme` without touching a config file
 - **Vim navigation** — `j`/`k`, `gg`/`G`, `Enter`, `Esc` — no mouse required
 - **Themes** — `plexicus` (default), `dark`, `light` — switch live with `:theme <name>`
 - **Zero-dependency install** — single static binary, no Node.js or Bun runtime needed on the target machine
@@ -171,20 +168,6 @@ Press `a` in the Repos panel to open the SCM connect flow:
 
 **Headless / SSH sessions**: if the browser cannot be opened, the TUI displays the authorization URL prominently so you can click it in your terminal emulator. The polling flow continues normally once you complete auth on your local machine.
 
-### AI chat sidebar
-
-Press `c` to toggle the chat sidebar. Ask anything about your findings:
-
-```
-You: What's the risk of CVE-2024-1234 in my environment?
-AI:  CVE-2024-1234 is a SQL injection vulnerability rated CVSS 9.8 (Critical).
-     In your backend service it affects the user authentication endpoint...
-```
-
-The sidebar streams responses live. Press `Esc` to close it.
-
-You can also pre-fill the chat from the REPL: `:ask what is the safest way to fix this?`
-
 ### Detail pane
 
 Press `Enter` on any finding to open the detail pane:
@@ -235,7 +218,6 @@ The modal auto-closes two seconds after the job finishes. Press `Esc` to dismiss
 | `/` | Open fuzzy search (findings panel only) |
 | `F` | Open filter modal |
 | `:` | Open REPL command bar |
-| `c` | Toggle AI chat sidebar |
 | `?` | Show keybindings help |
 | `Ctrl+C` | Exit (press `Esc` first if you are in REPL mode) |
 
@@ -297,26 +279,9 @@ The modal auto-closes two seconds after the job finishes. Press `Esc` to dismiss
 | `Enter` | Select result |
 | `Esc` | Cancel |
 
-### Chat mode (`c` to enter)
-
-| Key | Action |
-|-----|--------|
-| `Esc` | Close sidebar, return to navigation |
-
----
-
 ## REPL commands
 
 Open the REPL with `:` and type a command. Press `Esc` to return to navigation without running anything.
-
-### `:ask <question>` (alias: `:a`)
-
-Opens the AI chat sidebar and sends the question immediately.
-
-```
-:ask what is the impact of CVE-2024-1234?
-:a how should I prioritize these findings?
-```
 
 ### `F` — Filter modal (recommended)
 
@@ -370,40 +335,17 @@ Switches the UI colour theme live.
 Set a configuration value without leaving the TUI.
 
 ```
-:config set llm.provider claude
-:config set llm.api_key sk-ant-...
 :config set theme light
+:config set serverUrl https://api.example.com
 ```
 
-This is equivalent to running `plexicus config set <key> <value>` from your shell. Key aliases apply: `llm.api_key` → stored as `llm.apiKey`, `llm.base_url` → stored as `llm.baseUrl`.
-
----
-
-## AI chat setup
-
-The AI chat sidebar uses your own API key. Configure a provider once:
-
-```bash
-# Use Claude (Anthropic)
-plexicus config set llm.provider claude
-plexicus config set llm.api_key sk-ant-...
-
-# Use OpenAI (or any OpenAI-compatible endpoint)
-plexicus config set llm.provider openai
-plexicus config set llm.api_key sk-...
-plexicus config set llm.model gpt-4o          # optional, overrides default
-plexicus config set llm.base_url https://...  # optional, for custom endpoints
-```
-
-Your API key is stored in `~/.config/plexicus/config.json` with `0600` permissions (owner read/write only).
+This is equivalent to running `plexicus config set <key> <value>` from your shell.
 
 ---
 
 ## Configuration
 
 All configuration is stored in `~/.config/plexicus/config.json`. Modify it with `plexicus config set` or edit the file directly.
-
-Keys passed to `plexicus config set` use snake_case aliases (`llm.api_key`, `llm.base_url`). They are normalized to camelCase when written to the JSON file (`llm.apiKey`, `llm.baseUrl`).
 
 | Key (command line / `config set`) | Key (JSON file) | Description | Default |
 |--------------------------|-----------------|-------------|---------|
@@ -412,10 +354,6 @@ Keys passed to `plexicus config set` use snake_case aliases (`llm.api_key`, `llm
 | `wsUrl` | `wsUrl` | WebSocket URL for real-time status events | derived from `serverUrl` |
 | `token` | `token` | Authentication token | — |
 | `theme` | `theme` | UI colour theme (`plexicus` \| `dark` \| `light`) | `plexicus` |
-| `llm.provider` | `llm.provider` | LLM provider (`claude` \| `openai`) | — |
-| `llm.api_key` | `llm.apiKey` | API key for the LLM provider | — |
-| `llm.model` | `llm.model` | Model name (optional override) | Provider default |
-| `llm.base_url` | `llm.baseUrl` | Custom base URL (OpenAI-compatible endpoints) | — |
 
 > **Self-hosted note**: `webUrl` and `wsUrl` must be set explicitly when your instance uses IP:port addresses. See [Self-hosted setup](#self-hosted-setup).
 
@@ -425,11 +363,7 @@ Example `~/.config/plexicus/config.json`:
 {
   "serverUrl": "https://api.app.plexicus.ai",
   "token": "plx_...",
-  "theme": "plexicus",
-  "llm": {
-    "provider": "claude",
-    "apiKey": "sk-ant-..."
-  }
+  "theme": "plexicus"
 }
 ```
 
@@ -470,10 +404,9 @@ Opens the TUI directly on the Repos panel.
 plexicus config set <key> <value>
 
 Examples:
-  plexicus config set llm.provider claude
-  plexicus config set llm.api_key sk-ant-...
   plexicus config set theme light
   plexicus config set serverUrl https://api.example.com
+  plexicus config set webUrl https://app.example.com
 ```
 
 ### Environment variables
