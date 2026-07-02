@@ -112,21 +112,22 @@ function buildFilterQuery(filter: FindingsFilter): URLSearchParams {
 
 function parseFindings(raw: unknown, repoMap?: Map<string, string>): FindingsResult {
   const parsed = FindingsResponseSchema.parse(raw)
-  const findings: Finding[] = parsed.data.map(item => ({
+  const findings: Finding[] = parsed.items.map(item => ({
     id: item.id,
     repo_nickname: repoMap?.get(item.attributes.repo_id) ?? null,
     ...item.attributes,
   }))
+  const total = parsed.total ?? findings.length
   return {
     findings,
-    total: parsed.meta?.pagination.total ?? findings.length,
-    pageCount: parsed.meta?.pagination.pageCount ?? 1,
+    total,
+    pageCount: Math.ceil(total / 25) || 1,
   }
 }
 
 function parseRepos(raw: unknown): ReposResult {
   const parsed = RepositoriesResponseSchema.parse(raw)
-  const repos: Repository[] = parsed.data.map(item => ({
+  const repos: Repository[] = parsed.items.map(item => ({
     id: item.id,
     nickname: item.attributes.nickname,
     uri: item.attributes.uri,
@@ -142,7 +143,7 @@ function parseRepos(raw: unknown): ReposResult {
   }))
   return {
     repos,
-    total: parsed.meta?.pagination.total ?? repos.length,
+    total: parsed.total ?? repos.length,
   }
 }
 

@@ -69,16 +69,11 @@ export const FindingItemSchema = z.object({
   attributes: FindingAttributesSchema,
 })
 
-const PaginationSchema = z.object({
-  page: z.number(),
-  pageCount: z.number(),
-  pageSize: z.number(),
-  total: z.number(),
-})
-
 export const FindingsResponseSchema = z.object({
-  data: z.array(FindingItemSchema),
-  meta: z.object({ pagination: PaginationSchema }).optional(),
+  items: z.array(FindingItemSchema),
+  next: z.string().nullable().optional(),
+  prev: z.string().nullable().optional(),
+  total: z.number().default(0),
 })
 
 export const SingleFindingResponseSchema = z.object({
@@ -114,8 +109,10 @@ export const RepoItemSchema = z.object({
 })
 
 export const RepositoriesResponseSchema = z.object({
-  data: z.array(RepoItemSchema),
-  meta: z.object({ pagination: PaginationSchema }).optional(),
+  items: z.array(RepoItemSchema),
+  next: z.string().nullable().optional(),
+  prev: z.string().nullable().optional(),
+  total: z.number().default(0),
 })
 
 const REMEDIATION_STATUS_MAP: Record<string, 'pending' | 'ready' | 'applied' | 'error'> = {
@@ -186,11 +183,17 @@ export const ApiTokenListItemSchema = z.object({
 })
 
 export const ApiTokenCreatedSchema = z.object({
-  id: z.string(),
+  access_token: z.string(),
+  token_type: z.string().default('bearer'),
   name: z.string(),
-  token: z.string(),
   created_at: z.string(),
-})
+  expires_at: z.string().nullable().optional(),
+}).transform(t => ({
+  id: t.name,
+  name: t.name,
+  token: t.access_token,
+  created_at: t.created_at,
+}))
 
 export const ApiTokensListSchema = z.array(ApiTokenListItemSchema)
 export const RemediationsListSchema = z.array(RemediationSchema)
