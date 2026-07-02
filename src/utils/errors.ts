@@ -23,13 +23,6 @@ export class PlexicusConfigError extends Error {
   }
 }
 
-export class LLMError extends Error {
-  constructor(message: string, public readonly provider: string) {
-    super(message)
-    this.name = 'LLMError'
-  }
-}
-
 export function friendlyError(err: unknown, fallback: string): string {
   const msg = err instanceof Error ? err.message : String(err ?? '')
   // If the message looks like a JSON array/object (Zod errors, API error arrays) replace with fallback

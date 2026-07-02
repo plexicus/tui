@@ -12,19 +12,11 @@ const optionalUrl = z.preprocess(
   z.string().url().optional(),
 )
 
-const LLMConfigSchema = z.object({
-  provider: z.enum(['claude', 'openai']).optional(),
-  apiKey: z.string().optional(),
-  model: z.string().optional(),
-  baseUrl: optionalUrl,
-})
-
 export const ConfigSchema = z.object({
   serverUrl: z.string().url().default('https://api.app.plexicus.ai'),
   webUrl: optionalUrl,
   wsUrl: z.string().optional(),
   token: z.string().optional(),
-  llm: LLMConfigSchema.default({}),
   theme: z.enum(['dark', 'light', 'plexicus']).default('plexicus'),
 })
 
@@ -45,15 +37,10 @@ export async function loadConfig(): Promise<Config> {
   const result = ConfigSchema.safeParse(json)
   if (result.success) return result.data
   // Validation failed for some fields — strip invalid optional URL fields and retry
-  // so a bad llm.baseUrl or webUrl doesn't wipe out serverUrl / token
+  // so a bad webUrl doesn't wipe out serverUrl / token
   if (typeof json === 'object' && json !== null) {
     const safe = { ...(json as Record<string, unknown>) }
     if (!safe.webUrl) delete safe.webUrl
-    if (typeof safe.llm === 'object' && safe.llm !== null) {
-      const llm = { ...(safe.llm as Record<string, unknown>) }
-      if (!llm.baseUrl) delete llm.baseUrl
-      safe.llm = llm
-    }
     const retry = ConfigSchema.safeParse(safe)
     if (retry.success) return retry.data
   }
@@ -77,11 +64,7 @@ export async function saveConfig(config: Config): Promise<void> {
 
 export async function setConfigValue(key: string, value: string): Promise<Config> {
   const current = await loadConfig()
-  // Normalize CLI key aliases: llm.api_key → llm.apiKey, llm.base_url → llm.baseUrl
-  const normalizedKey = key
-    .replace(/\.api_key$/, '.apiKey')
-    .replace(/\.base_url$/, '.baseUrl')
-  const updated = set({ ...current }, normalizedKey, value)
+  const updated = set({ ...current }, key, value)
   const validated = ConfigSchema.parse(updated)
   await saveConfig(validated)
   return validated

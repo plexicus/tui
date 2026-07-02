@@ -1,4 +1,4 @@
-import type { Finding, FindingSeverity, FindingStatus, FindingType, Repository, Remediation, ChatMessage, Panel, InputMode, SessionUser, StatusJob, Screen } from '../types.js'
+import type { Finding, FindingSeverity, FindingStatus, FindingType, Repository, Remediation, Panel, InputMode, SessionUser, StatusJob, Screen } from '../types.js'
 
 export interface FindingsFilter {
   severities?: FindingSeverity[]
@@ -32,11 +32,6 @@ export type Action =
   | { type: 'repos/set'; payload: Repository[] }
   | { type: 'repos/loading'; payload: boolean }
   | { type: 'remediation/set'; payload: Remediation }
-  | { type: 'chat/append'; payload: ChatMessage }
-  | { type: 'chat/streaming'; payload: boolean }
-  | { type: 'chat/chunk'; payload: { messageIndex: number; chunk: string } }
-  | { type: 'chat/done' }
-  | { type: 'chat/clear' }
   | { type: 'ui/setPanel'; payload: Panel }
   | { type: 'ui/setTheme'; payload: 'dark' | 'light' | 'plexicus' }
   | { type: 'ui/setError'; payload: string | null }
@@ -54,5 +49,3 @@ export type Action =
   | { type: 'nav/pushScreen'; payload: Screen }
   | { type: 'nav/popScreen' }
   | { type: 'repo/select'; payload: string | null }
-  | { type: 'ai/open'; payload?: string }
-  | { type: 'ai/close' }

@@ -114,7 +114,7 @@ program
   .addCommand(
     program
       .createCommand('set')
-      .argument('<key>', 'config key (e.g. llm.provider)')
+      .argument('<key>', 'config key (e.g. serverUrl)')
       .argument('<value>', 'config value')
       .action(async (key, value) => {
         const { default: ConfigSetCommand } = await import('./commands/configSet.js')

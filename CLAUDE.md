@@ -119,9 +119,7 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 MOCK_PLEXICUS=1 bun run src/main.tsx --token test
 
 # CLI subcommands
-bun run src/main.tsx config set llm.provider claude
-bun run src/main.tsx config set llm.api_key <key>
-bun run src/main.tsx config set llm.base_url <url>
+bun run src/main.tsx config set serverUrl <url>
 bun run src/main.tsx login
 bun run src/main.tsx repos
 
@@ -158,8 +156,7 @@ Key state fields:
 - `screen: Screen` — current screen (`repos | findings | detail`)
 - `screenStack: Screen[]` — navigation history; Esc pops the stack
 - `selectedRepoId: string | null` — repo in scope for findings screen (null = all)
-- `aiModalOpen: boolean` / `aiModalPrompt: string | null` — smart REPL AI overlay state
-- `inputMode: 'navigation' | 'repl' | 'chat' | 'login' | 'filter' | 'scm'` — gates ALL keyboard input; `'chat'` is used when AIModal is open
+- `inputMode: 'navigation' | 'repl' | 'login' | 'filter' | 'scm'` — gates ALL keyboard input
 - `fuzzyOpen: boolean` — controls FuzzyPicker (works on both repos and findings screens)
 - `filterOpen: boolean` — controls FilterModal; `filter/open` sets `inputMode: 'filter'`
 - `scmFlowOpen: boolean` — controls SCMConnectFlow; `scm/open` sets `inputMode: 'scm'`
@@ -173,19 +170,18 @@ Key state fields:
 
 Key bindings by mode:
 - **Navigation**: `j/k` (move), `gg/G` (top/bottom), `Enter` (drill-down), `s/f` (suppress/fp from list), `a` (add repo — repos screen), `o` (open SCM link — detail screen), `F` (filter modal), `/` (fuzzy), `:` (REPL), `?` (help), `Esc` (back)
-- **REPL**: printable chars → accumulate; `Backspace` → delete; `Enter` → submit; `↑/↓` → history or dropdown nav; `Tab` → accept dropdown item; `Esc` → exit. Unknown input (non-command) → opens AI modal
-- **Chat** (AI modal open): `Esc` → close AI modal
+- **REPL**: printable chars → accumulate; `Backspace` → delete; `Enter` → submit; `↑/↓` → history or dropdown nav; `Tab` → accept dropdown item; `Esc` → exit. Unknown input (non-command) → "Unknown command" message
 - **Fuzzy**: `↑/↓` → cursor; `Enter` → select; `Esc` → cancel
 - **Filter**: `↑/↓` → navigate sections; `j/k` → navigate within checkbox sections; `Space` → toggle; `Enter` → apply; `r` → reset; `Esc` → cancel
 - **SCM flow**: `j/k` → navigate; `Space` → toggle repo selection; `Enter` → confirm; `Esc` → back/cancel
 
-### Smart REPL
-Known commands: `:filter`, `:scan`, `:theme <plexicus|dark|light>`, `:config set <key> <value>`, `:help` / `:?`. Unknown non-empty input → dispatches `chat/clear` + `ai/open(text)` + `inputMode: 'chat'`, opening `AIModal` with the text as the first message.
+### REPL
+Known commands: `:filter`, `:scan`, `:theme <plexicus|dark|light>`, `:config set <key> <value>`, `:help` / `:?`. Unknown non-empty input → shows an "Unknown command" message.
 
 `:scan` requires `state.selectedRepoId` to be set (i.e., user must be on findings screen for a specific repo). It calls `api.requestScan(repoId)` and opens `StatusModal`.
 
 ### Component tree (`src/components/`)
-`App.tsx` → `AuthGate` (FirstRunWizard → LoginForm → AppShell). `AppShell`: breadcrumb header, screen router (`ReposPanel | FindingsPanel | FindingDetailScreen`), overlay modals (FilterModal, StatusModal, AIModal), REPL bar + autocomplete dropdown.
+`App.tsx` → `AuthGate` (FirstRunWizard → LoginForm → AppShell). `AppShell`: breadcrumb header, screen router (`ReposPanel | FindingsPanel | FindingDetailScreen`), overlay modals (FilterModal, StatusModal), REPL bar + autocomplete dropdown.
 
 `FuzzyPicker` renders inside `ReposPanel` or `FindingsPanel` when `state.fuzzyOpen && state.screen === 'repos|findings'`.
 
@@ -194,8 +190,6 @@ Known commands: `:filter`, `:scan`, `:theme <plexicus|dark|light>`, `:config set
 `FindingDetailScreen` — Screen 3. Renders inline `DiffModal` when `r` is pressed (`r=fix` for unfixed findings, `r=view remediation` for `ready` or `mitigated`). Status display: `open` (yellow), `enriched` (cyan, ⊕), `ready` (magenta, ⚡ — has a remediation ready), `mitigated` (green, ✓). SCM link uses `src/utils/scm.ts`: `scmUrl(repo, finding)` builds the URL, `openScmLink(url)` tries `open`/`xdg-open`, falls back to `pbcopy`/`xclip` and returns `{ opened: false, url }` for UI display.
 
 `DiffModal` — inline overlay for AI remediation. Shows 12 scrollable lines of unified diff (j/k or ↑↓ to scroll). When opened: checks for existing ready remediation via HTTP, then creates one if missing, opens StatusModal, and sends a WS `status-remediation` request. HTTP polling (3s interval, 15 min max) runs as fallback. `p` creates a PR, Esc cancels.
-
-`AIModal` — overlay rendered when `state.aiModalOpen`. Uses `useLLMStream`. Auto-sends `state.aiModalPrompt` on mount. TextInput for follow-up questions.
 
 `SCMConnectFlow` renders inside `ReposPanel` when `state.scmFlowOpen`. State machine: `pick-provider → authorizing → gitea-form → pick-repos → importing → done/error`.
 
@@ -222,17 +216,14 @@ All findings and repo responses are `{ data: [{ id, attributes: {...} }], meta: 
 Set `MOCK_PLEXICUS=1` to load fixture data from `tests/fixtures/plexicus/` instead of making HTTP calls. All responses validated via Zod schemas in `src/services/apiSchemas.ts`.
 
 ### Config (`src/services/config.ts`)
-Stored at `~/.config/plexicus/config.json`. Atomic writes: `mkdir(0o700)` → `chmod` → `writeFile(tmp, 0o600)` → `rename` → `chmod`. Key aliases normalized in `setConfigValue`: `llm.api_key → llm.apiKey`, `llm.base_url → llm.baseUrl`.
+Stored at `~/.config/plexicus/config.json`. Atomic writes: `mkdir(0o700)` → `chmod` → `writeFile(tmp, 0o600)` → `rename` → `chmod`.
 
-Config fields: `serverUrl`, `webUrl` (optional web frontend URL for browser redirects), `wsUrl` (optional WebSocket URL), `token`, `llm.{provider,apiKey,model,baseUrl}`, `theme`.
+Config fields: `serverUrl`, `webUrl` (optional web frontend URL for browser redirects), `wsUrl` (optional WebSocket URL), `token`, `theme`.
 
 If `webUrl` is not set, it is derived from `serverUrl` by stripping the `api.` subdomain prefix — works for cloud (`https://api.app.plexicus.ai → https://app.plexicus.ai`) but not for IP:port deployments. Always set `webUrl` explicitly on self-hosted installs.
 
-### LLM streaming (`src/services/llm/`)
-`streamLLM` routes to `streamClaude` (Anthropic SDK) or `streamOpenAI` based on `config.llm.provider`. User supplies their own API key. `useLLMStream` hook manages `AbortController` with cleanup on unmount.
-
 ### Command registry (`src/commands.ts`)
-Discriminated union: `PromptCommand | LocalCommand | LocalJSXCommand`. Lazily loaded via lodash-es `memoize()`. Registered commands: `theme`, `filter`, `config`. The REPL in `App.tsx` inline-handles `filter`, `scan`, `theme`, `help`; unknown input routes to the AI modal. `ask` command is removed — smart REPL replaces it.
+Discriminated union: `PromptCommand | LocalCommand | LocalJSXCommand`. Lazily loaded via lodash-es `memoize()`. Registered commands: `theme`, `filter`, `config`. The REPL in `App.tsx` inline-handles `filter`, `scan`, `theme`, `help`; unknown input shows an "Unknown command" message.
 
 ### Testing
 Mock API via `MOCK_PLEXICUS=1`. Config tests use `beforeEach`/`afterEach` with `mkdtemp` + `process.env.HOME` override to isolate filesystem. Component tests use `ink-testing-library`. Use dynamic `import()` (not top-level) in tests when the module reads env vars at init time.
