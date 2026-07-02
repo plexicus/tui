@@ -10,6 +10,7 @@ Thank you for your interest in contributing. This guide covers everything you ne
 - [Running tests](#running-tests)
 - [Code style](#code-style)
 - [Pull request checklist](#pull-request-checklist)
+- [Releases](#releases)
 - [Reporting issues](#reporting-issues)
 
 ---
@@ -19,8 +20,8 @@ Thank you for your interest in contributing. This guide covers everything you ne
 **Prerequisites**: [Bun](https://bun.sh) ≥ 1.1
 
 ```bash
-git clone https://github.com/plexicus/cli
-cd cli
+git clone https://github.com/plexicus/tui
+cd tui
 bun install
 ```
 
@@ -140,9 +141,27 @@ Before opening a PR, confirm:
 
 ---
 
+## Releases
+
+Releases are fully automated via GitHub Actions ([`.github/workflows/release.yml`](.github/workflows/release.yml)). To publish a new version:
+
+1. Bump `version` in `package.json` on `main` (via PR, following the [checklist](#pull-request-checklist)).
+2. Tag and push:
+
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+3. The `Release` workflow runs typecheck and tests, builds standalone binaries for macOS (arm64, x64) and Linux (x64) with `bun build --compile`, generates `SHA256SUMS`, and publishes a GitHub release with auto-generated notes.
+
+The tag must match the `package.json` version (`v` + semver). CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) also smoke-tests the compiled binary on every PR so release builds don't break silently.
+
+---
+
 ## Reporting issues
 
-Open an issue at [github.com/plexicus/cli/issues](https://github.com/plexicus/cli/issues). Include:
+Open an issue at [github.com/plexicus/tui/issues](https://github.com/plexicus/tui/issues). Include:
 
 - plexicus version (`plexicus --version`)
 - OS and terminal emulator
