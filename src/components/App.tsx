@@ -13,6 +13,8 @@ import { FirstRunWizard } from './FirstRunWizard.js'
 import { findCommand } from '../commands.js'
 import { useWebSocket } from '../hooks/useWebSocket.js'
 import { filterCommands } from '../utils/replCommands.js'
+import { friendlyError } from '../utils/errors.js'
+import { createApiClient } from '../services/apiClient.js'
 import type { Config } from '../services/config.js'
 
 interface AppProps {
@@ -53,7 +55,6 @@ function AppShell(props: AppProps) {
   const { exit } = useApp()
   const [replInput, setReplInput] = useState('')
   const [replOutput, setReplOutput] = useState<string | null>(null)
-  const [showHelp, setShowHelp] = useState(false)
   const commandHistory = useRef<string[]>([])
   const historyIndex = useRef(-1)
   const replInputRef = useRef('')
@@ -89,8 +90,8 @@ function AppShell(props: AppProps) {
   const ac = accent(state.theme)
 
   useInput((input, key) => {
-    if (showHelp) {
-      setShowHelp(false)
+    if (state.inputMode === 'help') {
+      dispatch({ type: 'help/close' })
       return
     }
 
@@ -98,7 +99,7 @@ function AppShell(props: AppProps) {
     if (state.inputMode === 'scm') return
 
     if (input === '?' && state.inputMode === 'navigation') {
-      setShowHelp(true)
+      dispatch({ type: 'help/open' })
       return
     }
 
@@ -253,10 +254,7 @@ function AppShell(props: AppProps) {
             return
           }
           try {
-            const { loadConfig } = await import('../services/config.js')
-            const { PlexicusApi } = await import('../services/plexicusApi.js')
-            const config = await loadConfig()
-            const api = new PlexicusApi({ baseUrl: config.serverUrl, token: stateRef.current.token ?? config.token })
+            const api = await createApiClient(stateRef.current.token)
             const repo = stateRef.current.repos.find(r => r.id === repoId)
             await api.requestScan(repoId)
             dispatch({
@@ -264,15 +262,14 @@ function AppShell(props: AppProps) {
               payload: { type: 'repo', id: repoId, name: repo?.nickname ?? repoId, status: 'pending', progress: 0, logs: [] },
             })
           } catch (err) {
-            setReplOutput(err instanceof Error ? err.message : 'Scan request failed')
+            setReplOutput(friendlyError(err, 'Scan request failed'))
           }
           dispatch({ type: 'ui/setInputMode', payload: 'navigation' })
           return
         }
 
         if (cmdName === '?' || cmdName === 'help') {
-          dispatch({ type: 'ui/setInputMode', payload: 'navigation' })
-          setShowHelp(true)
+          dispatch({ type: 'help/open' })
           return
         }
 
@@ -288,11 +285,11 @@ function AppShell(props: AppProps) {
         setReplOutput(`Unknown command: ${cmdName} — type :help for available commands`)
         dispatch({ type: 'ui/setInputMode', payload: 'navigation' })
       } catch (err) {
-        setReplOutput(err instanceof Error ? err.message : 'Command failed')
+        setReplOutput(friendlyError(err, 'Command failed'))
         dispatch({ type: 'ui/setInputMode', payload: 'navigation' })
       }
     },
-    [dispatch, setShowHelp],
+    [dispatch],
   )
 
   const { sort_by: _sb, sort_dir: _sd, ...filterRest } = state.findingsFilter
@@ -396,7 +393,7 @@ function AppShell(props: AppProps) {
         )}
       </Box>
 
-      {showHelp && <KeybindingsHelp onDismiss={() => setShowHelp(false)} accentColor={ac} />}
+      {state.inputMode === 'help' && <KeybindingsHelp accentColor={ac} />}
     </Box>
   )
 }

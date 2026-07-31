@@ -3,8 +3,9 @@ import { Box, Text, useInput } from 'ink'
 import { SmartTextInput as TextInput } from './design-system/SmartTextInput.js'
 import { useAppState } from '../state/AppState.js'
 import { accent } from '../utils/theme.js'
-import { PlexicusApi } from '../services/plexicusApi.js'
+import { createApiClient } from '../services/apiClient.js'
 import { loadConfig } from '../services/config.js'
+import { friendlyError } from '../utils/errors.js'
 import { Spinner } from './design-system/Spinner.js'
 import type { ScmProvider, ScmRepo } from '../types.js'
 
@@ -43,7 +44,7 @@ export function SCMConnectFlow({ onClose }: { onClose: () => void }) {
       try {
         const config = await loadConfig()
         setWebUrl(config.webUrl ?? null)
-        const api = new PlexicusApi({ baseUrl: config.serverUrl, token: state.token ?? undefined })
+        const api = await createApiClient(state.token)
         const v = await api.checkScmValidity()
         if (!cancelled) setValidity(v)
       } catch {
@@ -76,14 +77,13 @@ export function SCMConnectFlow({ onClose }: { onClose: () => void }) {
   const fetchRepos = useCallback(async (prov: ScmProvider) => {
     setStep('loading-repos')
     try {
-      const config = await loadConfig()
-      const api = new PlexicusApi({ baseUrl: config.serverUrl, token: state.token ?? undefined })
+      const api = await createApiClient(state.token)
       const scmRepos = await api.getScmRepos(prov)
       setRepos(scmRepos)
       setCursor(0)
       setStep('pick-repos')
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Failed to load repositories')
+      setErrorMsg(friendlyError(err, 'Failed to load repositories'))
       setStep('error')
     }
   }, [state.token])
@@ -100,14 +100,13 @@ export function SCMConnectFlow({ onClose }: { onClose: () => void }) {
     }
     setStep('importing')
     try {
-      const config = await loadConfig()
-      const api = new PlexicusApi({ baseUrl: config.serverUrl, token: state.token ?? undefined })
+      const api = await createApiClient(state.token)
       const repo = { id: nickname, name: nickname, full_name: nickname, html_url: url }
       await api.importRepositories([repo], guessProvider(url))
       setImportedCount(1)
       setStep('done')
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Import failed')
+      setErrorMsg(friendlyError(err, 'Import failed'))
       setStep('error')
     }
   }, [manualRepoUrl, manualNickname, state.token])
@@ -117,13 +116,12 @@ export function SCMConnectFlow({ onClose }: { onClose: () => void }) {
     if (toImport.length === 0) return
     setStep('importing')
     try {
-      const config = await loadConfig()
-      const api = new PlexicusApi({ baseUrl: config.serverUrl, token: state.token ?? undefined })
+      const api = await createApiClient(state.token)
       await api.importRepositories(toImport, provider)
       setImportedCount(toImport.length)
       setStep('done')
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Import failed')
+      setErrorMsg(friendlyError(err, 'Import failed'))
       setStep('error')
     }
   }, [repos, selectedRepoIds, provider, state.token])
@@ -131,7 +129,9 @@ export function SCMConnectFlow({ onClose }: { onClose: () => void }) {
   const filteredRepos = repoQuery
     ? repos.filter(r => r.full_name.toLowerCase().includes(repoQuery.toLowerCase()))
     : repos
-  const visibleRepos = filteredRepos.slice(0, 12)
+  const REPO_VISIBLE = 12
+  const repoWindowStart = Math.max(0, cursor - Math.floor(REPO_VISIBLE / 2))
+  const visibleRepos = filteredRepos.slice(repoWindowStart, repoWindowStart + REPO_VISIBLE)
 
   const selectedProvider = PROVIDERS[cursor]
   const selectedConnected = selectedProvider ? !!validity[selectedProvider.id] : false
@@ -169,10 +169,15 @@ export function SCMConnectFlow({ onClose }: { onClose: () => void }) {
     }
 
     if (step === 'pick-repos') {
-      if (input === 'j' || key.downArrow) { setCursor(c => Math.min(c + 1, visibleRepos.length - 1)); return }
+      if (key.backspace || key.delete) {
+        setRepoQuery(q => q.slice(0, -1))
+        setCursor(0)
+        return
+      }
+      if (input === 'j' || key.downArrow) { setCursor(c => Math.min(c + 1, filteredRepos.length - 1)); return }
       if (input === 'k' || key.upArrow) { setCursor(c => Math.max(c - 1, 0)); return }
       if (input === ' ') {
-        const repo = visibleRepos[cursor]
+        const repo = filteredRepos[cursor]
         if (repo) {
           setSelectedRepoIds(prev => {
             const next = new Set(prev)
@@ -183,6 +188,11 @@ export function SCMConnectFlow({ onClose }: { onClose: () => void }) {
         return
       }
       if (key.return) { importSelected(); return }
+      if (!key.ctrl && !key.meta && input && input.length === 1) {
+        setRepoQuery(q => q + input)
+        setCursor(0)
+        return
+      }
     }
 
     if (step === 'error') {
@@ -253,20 +263,21 @@ export function SCMConnectFlow({ onClose }: { onClose: () => void }) {
           <Text dimColor>Select repositories to import ({selectedRepoIds.size} selected):</Text>
           <Box>
             <Text dimColor>/ </Text>
-            <TextInput value={repoQuery} onChange={(v) => { setRepoQuery(v); setCursor(0) }} placeholder="filter repos..." />
+            <Text>{repoQuery}<Text inverse> </Text>{!repoQuery && <Text dimColor>filter repos...</Text>}</Text>
           </Box>
           {visibleRepos.map((repo, i) => {
+            const absIdx = repoWindowStart + i
             const selected = selectedRepoIds.has(repo.id)
             return (
-              <Text key={repo.id} inverse={i === cursor}>
-                {i === cursor ? '▶ ' : '  '}
+              <Text key={repo.id} inverse={absIdx === cursor}>
+                {absIdx === cursor ? '▶ ' : '  '}
                 <Text color={selected ? 'green' : undefined}>{selected ? '✓ ' : '  '}</Text>
                 {repo.full_name}
                 {repo.private && <Text dimColor> (private)</Text>}
               </Text>
             )
           })}
-          <Text dimColor>{visibleRepos.length}/{repos.length} repos</Text>
+          <Text dimColor>{filteredRepos.length}/{repos.length} repos</Text>
           <Box marginTop={1}><Text dimColor>↑↓=navigate  Space=toggle  Enter=import selected  Esc=back</Text></Box>
         </Box>
       )}

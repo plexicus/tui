@@ -1,5 +1,5 @@
 import React from 'react'
-import { Box, Text, useInput } from 'ink'
+import { Box, Text } from 'ink'
 import { Dialog } from './Dialog.js'
 
 const KEYBINDINGS = [
@@ -15,25 +15,20 @@ const KEYBINDINGS = [
   ['] / [', 'Next / prev page'],
   ['/', 'Fuzzy search (findings only)'],
   [':', 'Open command REPL'],
-  ['c', 'Toggle AI chat sidebar'],
-  ['Tab / 1 / 2', 'Switch panels'],
   ['?', 'Show this help'],
   ['── REPL ──', ''],
-  [':ask / :a', 'Ask AI a question'],
   [':filter', 'Open filter modal'],
+  [':scan', 'Trigger a repository scan'],
   [':theme dark|light|plexicus', 'Switch UI theme'],
   [':config set <key> <value>', 'Set a config value'],
   [':help / :?', 'Show keybindings help'],
 ]
 
 interface KeybindingsHelpProps {
-  onDismiss: () => void
   accentColor?: string
 }
 
-export function KeybindingsHelp({ onDismiss, accentColor = '#9241ff' }: KeybindingsHelpProps) {
-  useInput(() => onDismiss())
-
+export function KeybindingsHelp({ accentColor = '#9241ff' }: KeybindingsHelpProps) {
   return (
     <Dialog title="Keybindings" accentColor={accentColor}>
       {KEYBINDINGS.map(([key, desc]) =>

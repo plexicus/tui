@@ -21,11 +21,10 @@ export function StatusModal() {
   const job = state.activeStatusJob
 
   useInput((_, key) => {
-    if (!job) return
     if (key.escape) {
       dispatch({ type: 'status/close' })
     }
-  })
+  }, { isActive: !!job && state.inputMode === 'navigation' })
 
   if (!job) return null
 

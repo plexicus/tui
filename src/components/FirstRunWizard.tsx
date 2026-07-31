@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Box, Text } from 'ink'
 import { SmartTextInput as TextInput } from './design-system/SmartTextInput.js'
 import { saveConfig, loadConfig } from '../services/config.js'
+import { friendlyError } from '../utils/errors.js'
 
 interface FirstRunWizardProps {
   onComplete: () => void
@@ -21,7 +22,7 @@ export function FirstRunWizard({ onComplete }: FirstRunWizardProps) {
       await saveConfig({ ...config, serverUrl: url })
       onComplete()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save config')
+      setError(friendlyError(err, 'Failed to save config'))
       setSaving(false)
     }
   }

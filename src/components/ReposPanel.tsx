@@ -52,6 +52,14 @@ export function ReposPanel() {
     setCursorIndex(i => Math.max(i - 1, 0))
   }, [])
 
+  const handleGG = useCallback(() => {
+    setCursorIndex(0)
+  }, [])
+
+  const handleShiftG = useCallback(() => {
+    setCursorIndex(totalItems - 1)
+  }, [totalItems])
+
   const handleSelect = useCallback(() => {
     const repoId = cursorIndex === 0 ? null : (repos[cursorIndex - 1]?.id ?? null)
     dispatch({ type: 'repo/select', payload: repoId })
@@ -67,7 +75,7 @@ export function ReposPanel() {
   }, [dispatch])
 
   useKeymap(
-    { onDown: handleDown, onUp: handleUp, onSelect: handleSelect, onAdd: handleAdd },
+    { onDown: handleDown, onUp: handleUp, onGG: handleGG, onShiftG: handleShiftG, onSelect: handleSelect, onAdd: handleAdd },
     { inputMode: state.inputMode, isActive: state.screen === 'repos' },
   )
 

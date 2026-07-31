@@ -7,6 +7,7 @@ import { useFindings } from '../hooks/useFindings.js'
 import { Spinner } from './design-system/Spinner.js'
 import { FuzzyPicker } from './design-system/FuzzyPicker.js'
 import { severityColor } from '../utils/severity.js'
+import { useFindingActions } from '../hooks/useFindingActions.js'
 import type { Finding } from '../types.js'
 import type { FindingsFilter } from '../state/actions.js'
 
@@ -47,6 +48,14 @@ export function FindingsPanel({ repo, cve }: FindingsPanelProps) {
     setCursorIndex(i => Math.max(i - 1, 0))
   }, [])
 
+  const handleGG = useCallback(() => {
+    setCursorIndex(0)
+  }, [])
+
+  const handleShiftG = useCallback(() => {
+    setCursorIndex(Math.max(0, findings.length - 1))
+  }, [findings.length])
+
   const handleSelect = useCallback(() => {
     const finding = findings[cursorIndex]
     if (!finding) return
@@ -58,40 +67,24 @@ export function FindingsPanel({ repo, cve }: FindingsPanelProps) {
     dispatch({ type: 'nav/popScreen' })
   }, [dispatch])
 
-  const handleSuppress = useCallback(async () => {
-    const finding = findings[cursorIndex]
-    if (!finding) return
-    try {
-      const { loadConfig } = await import('../services/config.js')
-      const { PlexicusApi } = await import('../services/plexicusApi.js')
-      const config = await loadConfig()
-      const api = new PlexicusApi({ baseUrl: config.serverUrl, token: state.token ?? config.token })
-      await api.markMitigated(finding.id)
-      dispatch({ type: 'findings/update', payload: { ...finding, status: 'mitigated' as const } })
-    } catch (err) {
-      dispatch({ type: 'ui/setError', payload: err instanceof Error ? err.message : 'Failed to suppress finding' })
-    }
-  }, [findings, cursorIndex, dispatch, state.token])
+  const { suppress, toggleFalsePositive } = useFindingActions()
 
-  const handleFalsePositive = useCallback(async () => {
+  const handleSuppress = useCallback(() => {
     const finding = findings[cursorIndex]
-    if (!finding) return
-    try {
-      const { loadConfig } = await import('../services/config.js')
-      const { PlexicusApi } = await import('../services/plexicusApi.js')
-      const config = await loadConfig()
-      const api = new PlexicusApi({ baseUrl: config.serverUrl, token: state.token ?? config.token })
-      await api.toggleFalsePositive(finding.id)
-      dispatch({ type: 'findings/update', payload: { ...finding, is_false_positive: !finding.is_false_positive } })
-    } catch (err) {
-      dispatch({ type: 'ui/setError', payload: err instanceof Error ? err.message : 'Failed to toggle false positive' })
-    }
-  }, [findings, cursorIndex, dispatch, state.token])
+    if (finding) suppress(finding)
+  }, [findings, cursorIndex, suppress])
+
+  const handleFalsePositive = useCallback(() => {
+    const finding = findings[cursorIndex]
+    if (finding) toggleFalsePositive(finding)
+  }, [findings, cursorIndex, toggleFalsePositive])
 
   useKeymap(
     {
       onDown: handleDown,
       onUp: handleUp,
+      onGG: handleGG,
+      onShiftG: handleShiftG,
       onSelect: handleSelect,
       onEscape: handleEscape,
       onSuppress: handleSuppress,

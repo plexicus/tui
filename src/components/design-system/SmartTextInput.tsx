@@ -73,7 +73,10 @@ export function SmartTextInput({
       }
       return
     }
-    if (key.return) {
+    if (key.return || key.tab) {
+      // Tab is unbound everywhere else in the app; users reflexively press it to
+      // advance fields, and without this it silently no-ops and their next
+      // keystrokes append into the still-focused field instead.
       onSubmit?.(latestValue.current)
       return
     }

@@ -1,7 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react'
 import { useAppState } from '../state/AppState.js'
-import { PlexicusApi } from '../services/plexicusApi.js'
-import { loadConfig } from '../services/config.js'
+import { createApiClient } from '../services/apiClient.js'
 import { friendlyError } from '../utils/errors.js'
 import { plexicusWs } from '../services/websocket.js'
 
@@ -82,8 +81,7 @@ export function useRemediation(findingId: string | null) {
 
     setLocalError(null)
     try {
-      const config = await loadConfig()
-      const api = new PlexicusApi({ baseUrl: config.serverUrl, token: state.token ?? config.token })
+      const api = await createApiClient(state.token)
 
       const existing = await api.getRemediations(findingId)
       const ready = existing.find(r => r.finding_id === findingId && r.status === 'ready')
@@ -161,8 +159,7 @@ export function useRemediation(findingId: string | null) {
     }
 
     try {
-      const config = await loadConfig()
-      const api = new PlexicusApi({ baseUrl: config.serverUrl, token: state.token ?? config.token })
+      const api = await createApiClient(state.token)
       await api.createPR(remediation.id)
       dispatch({ type: 'ui/setNotification', payload: 'PR creation triggered — check your repository' })
     } catch (err) {

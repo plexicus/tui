@@ -72,12 +72,6 @@ export interface Remediation {
   error_message?: string | null
 }
 
-export interface PR {
-  remediation_id: string
-  url: string
-  status: string
-}
-
 export interface ApiToken {
   id: string
   name: string
@@ -98,9 +92,7 @@ export interface SessionUser {
   email: string
 }
 
-export type Panel = 'findings' | 'repos'
-
-export type InputMode = 'navigation' | 'repl' | 'login' | 'filter' | 'scm'
+export type InputMode = 'navigation' | 'repl' | 'login' | 'filter' | 'scm' | 'help'
 
 export type ScmProvider = 'github' | 'gitlab' | 'bitbucket' | 'gitea'
 

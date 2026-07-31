@@ -29,11 +29,11 @@ const GG_TIMEOUT_MS = 500
 export function useKeymap(handlers: KeymapHandlers, { inputMode, isActive = true }: UseKeymapOptions) {
   const gPressedAt = useRef<number | null>(null)
 
+  // Gate via Ink's own isActive option (not a manual check inside the callback) so Ink
+  // detaches the stdin listener entirely when inactive — a manual in-callback check still
+  // leaves the listener attached, which races other active useInput hooks (e.g. modals)
+  // for the same keystroke depending on closure/render timing.
   useInput((input, key) => {
-    if (!isActive) return
-    // Only process navigation keys when in navigation mode
-    if (inputMode !== 'navigation') return
-
     if (input === 'j' || key.downArrow) {
       gPressedAt.current = null
       handlers.onDown?.()
@@ -116,5 +116,5 @@ export function useKeymap(handlers: KeymapHandlers, { inputMode, isActive = true
       handlers.onOpenLink?.()
       return
     }
-  })
+  }, { isActive: isActive && inputMode === 'navigation' })
 }

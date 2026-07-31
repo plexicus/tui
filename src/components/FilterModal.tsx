@@ -6,7 +6,7 @@ import type { FindingSeverity, FindingStatus, FindingType } from '../types.js'
 import type { FindingsFilter } from '../state/actions.js'
 
 const SEVERITIES: FindingSeverity[] = ['critical', 'high', 'medium', 'low', 'informational']
-const STATUSES: FindingStatus[] = ['open', 'mitigated', 'enriched']
+const STATUSES: FindingStatus[] = ['open', 'enriched', 'ready', 'mitigated']
 const TYPES: FindingType[] = ['SAST', 'SCA', 'DAST']
 
 // Section indices
@@ -513,12 +513,14 @@ export function FilterModal() {
       <Box marginTop={1} flexDirection="column">
         {sectionLabel(S_LANGUAGE, 'Language')}
         {textField(S_LANGUAGE, draft.language)}
+        {section === S_LANGUAGE && <Text dimColor>case-sensitive exact match — use the casing shown on a finding</Text>}
       </Box>
 
       {/* Category */}
       <Box marginTop={1} flexDirection="column">
         {sectionLabel(S_CATEGORY, 'Category')}
         {textField(S_CATEGORY, draft.category)}
+        {section === S_CATEGORY && <Text dimColor>case-sensitive exact match — use the casing shown on a finding</Text>}
       </Box>
 
       {/* CWE IDs */}

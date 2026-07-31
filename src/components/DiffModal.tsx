@@ -4,6 +4,7 @@ import { useAppState } from '../state/AppState.js'
 import { accent } from '../utils/theme.js'
 import { useRemediation } from '../hooks/useRemediation.js'
 import { parseDiff } from '../utils/diff.js'
+import { expandTabs } from '../utils/text.js'
 import { Spinner } from './design-system/Spinner.js'
 import type { Finding } from '../types.js'
 
@@ -51,7 +52,6 @@ export function DiffModal({ finding, onClose }: DiffModalProps) {
   const visibleLines = diffLines.slice(scrollOffset, scrollOffset + VISIBLE_LINES)
 
   useInput((input, key) => {
-    if (state.inputMode !== 'navigation') return
     if (key.escape) { onClose(); return }
 
     if (isReady && diffLines.length > 0) {
@@ -69,13 +69,13 @@ export function DiffModal({ finding, onClose }: DiffModalProps) {
       applyPR()
       return
     }
-  })
+  }, { isActive: state.inputMode === 'navigation' })
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1} flexGrow={1}>
+    <Box flexDirection="column" borderStyle="round" borderColor={ac} paddingX={1} flexGrow={1}>
       <Box justifyContent="space-between">
         <Box>
-          <Text bold color="yellow">AI Remediation</Text>
+          <Text bold color={ac}>AI Remediation</Text>
           <Text dimColor> — {finding.title}</Text>
         </Box>
         {isReady && diffLines.length > 0 && (
@@ -105,15 +105,16 @@ export function DiffModal({ finding, onClose }: DiffModalProps) {
       {isReady && diffLines.length > 0 && (
         <Box marginTop={1} flexDirection="column">
           {visibleLines.map((line, i) => {
+            const content = expandTabs(line.content)
             switch (line.type) {
               case 'add':
-                return <Text key={i} color="green">+{line.content}</Text>
+                return <Text key={i} color="green">+{content}</Text>
               case 'remove':
-                return <Text key={i} color="red">-{line.content}</Text>
+                return <Text key={i} color="red">-{content}</Text>
               case 'header':
-                return <Text key={i} color="cyan">{line.content}</Text>
+                return <Text key={i} color="cyan">{content}</Text>
               case 'context':
-                return <Text key={i} dimColor> {line.content}</Text>
+                return <Text key={i} dimColor> {content}</Text>
             }
           })}
         </Box>

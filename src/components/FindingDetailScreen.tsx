@@ -5,6 +5,8 @@ import { accent } from '../utils/theme.js'
 import { severityBadge, severityColor, cvssColor } from '../utils/severity.js'
 import { scmLabel, scmUrl, openScmLink } from '../utils/scm.js'
 import { DiffModal } from './DiffModal.js'
+import { expandTabs } from '../utils/text.js'
+import { useFindingActions } from '../hooks/useFindingActions.js'
 import type { Finding } from '../types.js'
 
 function statusLabel(finding: Finding): string {
@@ -57,7 +59,7 @@ function CodeBlock({ code, scrollOffset, highlightLine }: { code: string; scroll
         const isHot = highlightLine !== null && highlightLine !== undefined && lineNum === highlightLine
         return (
           <Text key={start + i} backgroundColor={isHot ? 'yellow' : undefined} color={isHot ? 'black' : 'white'}>
-            {line}
+            {expandTabs(line)}
           </Text>
         )
       })}
@@ -81,33 +83,15 @@ export function FindingDetailScreen() {
     ? state.repos.find(r => r.id === finding.repo_id) ?? null
     : null
 
-  const handleSuppress = useCallback(async () => {
-    if (!finding) return
-    try {
-      const { loadConfig } = await import('../services/config.js')
-      const { PlexicusApi } = await import('../services/plexicusApi.js')
-      const config = await loadConfig()
-      const api = new PlexicusApi({ baseUrl: config.serverUrl, token: state.token ?? config.token })
-      await api.markMitigated(finding.id)
-      dispatch({ type: 'findings/update', payload: { ...finding, status: 'mitigated' as const } })
-    } catch (err) {
-      dispatch({ type: 'ui/setError', payload: err instanceof Error ? err.message : 'Failed to suppress' })
-    }
-  }, [finding, state.token, dispatch])
+  const { suppress, toggleFalsePositive } = useFindingActions()
 
-  const handleFalsePositive = useCallback(async () => {
-    if (!finding) return
-    try {
-      const { loadConfig } = await import('../services/config.js')
-      const { PlexicusApi } = await import('../services/plexicusApi.js')
-      const config = await loadConfig()
-      const api = new PlexicusApi({ baseUrl: config.serverUrl, token: state.token ?? config.token })
-      await api.toggleFalsePositive(finding.id)
-      dispatch({ type: 'findings/update', payload: { ...finding, is_false_positive: !finding.is_false_positive } })
-    } catch (err) {
-      dispatch({ type: 'ui/setError', payload: err instanceof Error ? err.message : 'Failed to toggle false positive' })
-    }
-  }, [finding, state.token, dispatch])
+  const handleSuppress = useCallback(() => {
+    if (finding) suppress(finding)
+  }, [finding, suppress])
+
+  const handleFalsePositive = useCallback(() => {
+    if (finding) toggleFalsePositive(finding)
+  }, [finding, toggleFalsePositive])
 
   const handleOpenLink = useCallback(async () => {
     if (!finding || !repo) return
@@ -132,7 +116,6 @@ export function FindingDetailScreen() {
 
   useInput((input, key) => {
     if (!finding) return
-    if (state.inputMode !== 'navigation') return
     if (key.escape) { dispatch({ type: 'nav/popScreen' }); return }
     if (input === 'r') { setShowDiff(true); return }
     if (input === 's') { handleSuppress(); return }
@@ -146,7 +129,7 @@ export function FindingDetailScreen() {
       setCodeScroll(s => Math.min(s + 1, Math.max(0, codeLineCount - CODE_VISIBLE)))
       return
     }
-  })
+  }, { isActive: !showDiff && state.inputMode === 'navigation' })
 
   if (!finding) return null
   if (showDiff) return <DiffModal finding={finding} onClose={() => setShowDiff(false)} />
