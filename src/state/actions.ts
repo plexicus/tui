@@ -1,4 +1,4 @@
-import type { Finding, FindingSeverity, FindingStatus, FindingType, Repository, Remediation, Panel, InputMode, SessionUser, StatusJob, Screen } from '../types.js'
+import type { Finding, FindingSeverity, FindingStatus, FindingType, Repository, Remediation, InputMode, SessionUser, StatusJob, Screen } from '../types.js'
 
 export interface FindingsFilter {
   severities?: FindingSeverity[]
@@ -32,7 +32,6 @@ export type Action =
   | { type: 'repos/set'; payload: Repository[] }
   | { type: 'repos/loading'; payload: boolean }
   | { type: 'remediation/set'; payload: Remediation }
-  | { type: 'ui/setPanel'; payload: Panel }
   | { type: 'ui/setTheme'; payload: 'dark' | 'light' | 'plexicus' }
   | { type: 'ui/setError'; payload: string | null }
   | { type: 'ui/setNotification'; payload: string | null }
@@ -42,6 +41,8 @@ export type Action =
   | { type: 'filter/close' }
   | { type: 'scm/open' }
   | { type: 'scm/close' }
+  | { type: 'help/open' }
+  | { type: 'help/close' }
   | { type: 'status/open'; payload: StatusJob }
   | { type: 'status/update'; payload: Partial<StatusJob> & { id: string } }
   | { type: 'status/close' }

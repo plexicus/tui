@@ -4,6 +4,7 @@ import { SmartTextInput as TextInput } from './design-system/SmartTextInput.js'
 import { useAppState } from '../state/AppState.js'
 import { PlexicusApi } from '../services/plexicusApi.js'
 import { loadConfig, saveConfig } from '../services/config.js'
+import { friendlyError } from '../utils/errors.js'
 
 type LoginStep = 'email' | 'password' | 'otp' | 'loading' | 'done'
 
@@ -56,7 +57,7 @@ export function LoginForm({ prefilledToken, onDone }: LoginFormProps) {
         setStep('done')
         onDone?.(user.email)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Invalid token')
+        setError(friendlyError(err, 'Invalid token'))
         setStep('email')
       }
     }
@@ -92,7 +93,7 @@ export function LoginForm({ prefilledToken, onDone }: LoginFormProps) {
       setStep('done')
       onDone?.(sessionUser.email)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      setError(friendlyError(err, 'Login failed'))
       setStep('password')
     }
   }, [email, dispatch])
@@ -113,7 +114,7 @@ export function LoginForm({ prefilledToken, onDone }: LoginFormProps) {
       setStep('done')
       onDone?.(sessionUser.email)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '2FA verification failed')
+      setError(friendlyError(err, '2FA verification failed'))
       setStep('otp')
     }
   }, [email, dispatch])

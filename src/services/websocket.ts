@@ -1,4 +1,4 @@
-export interface WsMessage {
+interface WsMessage {
   client_id?: string
   finding_id?: string
   message?: string
@@ -42,6 +42,9 @@ class PlexicusWebSocket {
   private _connect(): void {
     if (!this.shouldReconnect) return
     try {
+      // Token must go in the query string: the backend's WS route (fastapi/routes/socket.py)
+      // declares `token: str = Query(...)` and calls decode_and_validate_scopes directly —
+      // it never reads websocket.headers, so a header-based alternative isn't available server-side.
       const url = `${this.wsUrl}/ws/${this.clientId}?token=${this.token}`
       this.ws = new WebSocket(url)
 

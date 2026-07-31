@@ -3,6 +3,7 @@ import { program } from '@commander-js/extra-typings'
 import React from 'react'
 import { render } from 'ink'
 import chalk from 'chalk'
+import { friendlyError } from './utils/errors.js'
 
 // Force true-color (24-bit) rendering — some terminals report lower capability
 chalk.level = 3
@@ -15,13 +16,17 @@ program
   .version(version)
   .option('--repo <name>', 'filter findings to a specific repository')
   .option('--cve <id>', 'jump directly to a finding by CVE ID')
-  .option('--token <token>', 'authenticate with a Bearer token')
+  .option('--token <token>', 'authenticate with a Bearer token (prefer PLEXICUS_TOKEN env var — argv is visible to other users via ps/procfs)')
   .action(async (options) => {
     const { loadConfig } = await import('./services/config.js')
     const { printSplash } = await import('./assets/splash.js')
     const config = await loadConfig()
 
     printSplash(version, config.serverUrl)
+
+    if (options.token) {
+      console.warn(chalk.yellow('Warning: --token exposes your token in the process list (ps, /proc). Prefer PLEXICUS_TOKEN.'))
+    }
 
     const token = options.token ?? process.env.PLEXICUS_TOKEN ?? config.token
 
@@ -32,7 +37,7 @@ program
 program
   .command('login')
   .description('Authenticate with the Plexicus API')
-  .option('--token <token>', 'skip interactive login, store this token directly')
+  .option('--token <token>', 'skip interactive login, store this token directly (prefer PLEXICUS_TOKEN env var — argv is visible to other users via ps/procfs)')
   .option('--headless', 'use email/password instead of browser redirect')
   .action(async (options) => {
     const { loadConfig, saveConfig } = await import('./services/config.js')
@@ -49,6 +54,7 @@ program
     }
 
     if (options.token) {
+      console.warn(chalk.yellow('Warning: --token exposes your token in the process list (ps, /proc). Prefer PLEXICUS_TOKEN.'))
       const loginEl = React.createElement(LoginForm, { prefilledToken: options.token, onDone })
       render(React.createElement(AppStateProvider, { initialTheme: config.theme, children: loginEl }))
       return
@@ -68,7 +74,7 @@ program
         console.log(chalk.green(`✓ Authenticated as ${email}`))
         process.exit(0)
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
+        const msg = friendlyError(err, 'Browser auth failed')
         console.warn(chalk.yellow(`Browser auth failed (${msg}), falling back to password login.`))
       }
     } else if (!options.headless && !webUrl) {

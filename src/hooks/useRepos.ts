@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useAppState } from '../state/AppState.js'
-import { PlexicusApi } from '../services/plexicusApi.js'
-import { loadConfig } from '../services/config.js'
+import { createApiClient } from '../services/apiClient.js'
+import { friendlyError } from '../utils/errors.js'
 
 export function useRepos() {
   const { state, dispatch } = useAppState()
@@ -15,13 +15,12 @@ export function useRepos() {
     async function fetchRepos() {
       dispatch({ type: 'repos/loading', payload: true })
       try {
-        const config = await loadConfig()
-        const api = new PlexicusApi({ baseUrl: config.serverUrl, token: state.token ?? config.token })
+        const api = await createApiClient(state.token)
         const { repos } = await api.getRepositories()
         dispatch({ type: 'repos/set', payload: repos })
       } catch (err) {
         dispatch({ type: 'repos/loading', payload: false })
-        dispatch({ type: 'ui/setError', payload: err instanceof Error ? err.message : 'Failed to load repos' })
+        dispatch({ type: 'ui/setError', payload: friendlyError(err, 'Failed to load repos') })
       }
     }
 

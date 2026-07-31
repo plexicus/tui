@@ -66,26 +66,56 @@ function encodeCursor(offset: number): string {
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+// The backend stores severity Title-Cased ("Critical", "High", ...) and matches
+// filters[severity] case-sensitively, but the client's internal Finding.severity is
+// lowercased for display — convert back before sending.
+function toBackendSeverity(severity: string): string {
+  return severity.charAt(0).toUpperCase() + severity.slice(1)
+}
+
+// The client aggregates several raw backend statuses into user-facing categories
+// (see STATUS_MAP in apiSchemas.ts); filters[status] matches raw values only, so
+// expand each selected category back to the raw values that map to it.
+const STATUS_FILTER_RAW_VALUES: Record<string, string[]> = {
+  open: ['pending_input'],
+  enriched: ['enriched', 'issued'],
+  ready: ['ready'],
+  mitigated: ['completed', 'pr_submitted', 'solved'],
+}
+
+// FilterModal's sort options map to raw MongoDB field names on the Finding document
+// (see FindingAttributesSchema in apiSchemas.ts); the backend's `sort` query param
+// follows the Zalando R137 convention (+/- prefix, single field only — see
+// fastapi/config/pagination.py:parse_sort_to_db in the platform repo).
+const SORT_FIELD_MAP: Record<string, string> = {
+  priority: 'prioritization_value',
+  severity: 'severity_numerical',
+  cvss: 'cvssv3_score',
+  date: 'date',
+  epss: 'estimated_epss',
+}
+
 function buildFilterQuery(filter: FindingsFilter): URLSearchParams {
   const qs = new URLSearchParams()
 
   if (filter.severities?.length) {
-    qs.set('filters[severity]', filter.severities.join(','))
+    qs.set('filters[severity]', filter.severities.map(toBackendSeverity).join(','))
   }
   if (filter.repository_ids?.length) {
     qs.set('filters[repository]', filter.repository_ids.join(','))
   }
   if (filter.statuses?.length) {
-    qs.set('filters[status]', filter.statuses.join(','))
+    const rawStatuses = filter.statuses.flatMap(s => STATUS_FILTER_RAW_VALUES[s] ?? [s])
+    qs.set('filters[status]', rawStatuses.join(','))
   }
   if (filter.types?.length) {
     qs.set('filters[type]', filter.types.join(','))
   }
   if (filter.cvss_gt !== undefined) {
-    qs.set('filters[cvssv3_score_gt]', String(Math.floor(filter.cvss_gt)))
+    qs.set('filters[cvssv3_score_gt]', String(filter.cvss_gt))
   }
   if (filter.cvss_lt !== undefined) {
-    qs.set('filters[cvssv3_score_lt]', String(Math.floor(filter.cvss_lt)))
+    qs.set('filters[cvssv3_score_lt]', String(filter.cvss_lt))
   }
   if (filter.priority_gt !== undefined) {
     qs.set('filters[priority_gt]', String(filter.priority_gt))
@@ -99,6 +129,9 @@ function buildFilterQuery(filter: FindingsFilter): URLSearchParams {
   if (filter.policy_names?.length) {
     qs.set('filters[policy_name]', filter.policy_names.join(','))
   }
+  // filters[language]/[category] are case-sensitive exact matches server-side
+  // (fastapi/utils/finding.py), and unlike severity there's no fixed casing convention —
+  // stored values are whatever each scanner tool emits, so no client-side transform is safe here.
   if (filter.languages?.length) {
     qs.set('filters[language]', filter.languages.join(','))
   }
@@ -110,6 +143,10 @@ function buildFilterQuery(filter: FindingsFilter): URLSearchParams {
   }
   if (filter.finding_type) {
     qs.set('finding_type', filter.finding_type)
+  }
+  if (filter.sort_by) {
+    const field = SORT_FIELD_MAP[filter.sort_by] ?? filter.sort_by
+    qs.set('sort', `${filter.sort_dir === 'asc' ? '+' : '-'}${field}`)
   }
 
   return qs
@@ -367,12 +404,10 @@ export class PlexicusApi {
     return this.fetch<ApiToken>('POST', '/users/me/api-tokens', { name }, ApiTokenCreatedSchema)
   }
 
-  // FIXME-11: GitLab and Bitbucket OAuth endpoints don't exist in backend yet.
-  // Only 'github' is valid until the backend exposes equivalent routes.
-  async getOAuthUrl(provider: 'github'): Promise<string> {
+  async getOAuthUrl(provider: string): Promise<string> {
     if (MOCK_MODE) return `https://github.com/login/oauth/authorize?mock=1`
-    const data = await this.fetch<{ oauth_url: string }>('GET', '/oauth/github/authorization', undefined, undefined, 'raw')
-    return data.oauth_url
+    const data = await this.fetch<{ authorization_url: string }>('GET', `/vulnerability-tool/auth/${provider}`, undefined, undefined, 'raw')
+    return data.authorization_url
   }
 
   async checkScmValidity(): Promise<Record<string, boolean>> {
@@ -401,9 +436,12 @@ export class PlexicusApi {
       // fetch() auto-unwraps { success, data: {...} } → raw IS { repositories: [...], total_count, ... }
       const raw = await this.fetch<unknown>('GET', `/vulnerability-tool/repositories/${provider}?${qs}`)
       const envelope = raw as Record<string, any>
-      const repos: any[] = Array.isArray(envelope?.repositories)
+      const rawRepos: any[] = Array.isArray(envelope?.repositories)
         ? envelope.repositories
         : (Array.isArray(raw) ? raw : [])
+      // Third-party SCM responses aren't Zod-validated here (shape varies per provider) —
+      // guard against null/non-object entries so one bad row doesn't crash the whole page.
+      const repos = rawRepos.filter((r): r is Record<string, any> => r != null && typeof r === 'object')
       allRepos.push(...repos.map(r => ({
         id: String(r.uuid ?? r.id ?? ''),
         name: String(r.slug ?? r.name ?? ''),
@@ -412,7 +450,7 @@ export class PlexicusApi {
         clone_url: r.clone_url ?? r.http_url_to_repo ?? undefined,
         private: r.private ?? r.is_private ?? r.visibility === 'private',
       } as ScmRepo)))
-      if (repos.length < PER_PAGE) break
+      if (rawRepos.length < PER_PAGE) break
       page++
     }
     return allRepos
@@ -420,32 +458,27 @@ export class PlexicusApi {
 
   async connectWithToken(provider: string, token: string, baseUrl?: string): Promise<void> {
     if (MOCK_MODE) return
-    // Use PUT /client/plugin/{provider} — same path the web frontend uses
+    // PUT /clients/self/plugins/{plugin_name} per the documented Platform API
     if (provider === 'gitea') {
       const url = new URL(baseUrl ?? 'http://localhost:3000')
       const port = url.port || (url.protocol === 'https:' ? '443' : '80')
-      await this.fetch<void>('PUT', '/client/plugin/gitea', {
+      await this.fetch<void>('PUT', '/clients/self/plugins/gitea', {
         protocol: url.protocol.replace(':', ''),
         oauth_token: token,
         hosted_domain: url.hostname,
         port,
       }, undefined, 'raw')
-      // save_token registers the encoded token in the auth system
-      await this.fetch<void>('POST', '/scm-tokens', {
-        token: `${url.protocol.replace(':', '')}:${token}:${url.hostname}:${port}`,
-        source_control: 'gitea',
-      }, undefined, 'raw')
     } else if (provider === 'gitlab') {
-      await this.fetch<void>('PUT', '/client/plugin/gitlab', {
+      await this.fetch<void>('PUT', '/clients/self/plugins/gitlab', {
         oauth_token: token,
         hosted_url: baseUrl ?? 'https://gitlab.com',
       }, undefined, 'raw')
     } else if (provider === 'bitbucket') {
-      await this.fetch<void>('PUT', '/client/plugin/bitbucket_cloud', {
+      await this.fetch<void>('PUT', '/clients/self/plugins/bitbucket_cloud', {
         oauth_token: token,
       }, undefined, 'raw')
     } else {
-      await this.fetch<void>('PUT', `/client/plugin/${provider}`, {
+      await this.fetch<void>('PUT', `/clients/self/plugins/${provider}`, {
         oauth_token: token,
       }, undefined, 'raw')
     }
@@ -459,7 +492,6 @@ export class PlexicusApi {
 
   async importRepositories(repos: ScmRepo[], sourceControl: string): Promise<void> {
     if (MOCK_MODE) return
-    // FIXME-16: body shape changed -- backend expects {data: [...], source_control}
     const data = repos.map(r => ({
       nickname: r.name,
       uri: r.html_url ?? r.clone_url ?? '',

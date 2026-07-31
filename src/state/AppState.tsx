@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, type ReactNode } from 'react'
-import type { Finding, Repository, Remediation, Panel, InputMode, SessionUser, StatusJob, Screen } from '../types.js'
+import type { Finding, Repository, Remediation, InputMode, SessionUser, StatusJob, Screen } from '../types.js'
 import type { Action, FindingsFilter } from './actions.js'
 
 export interface AppState {
@@ -16,7 +16,6 @@ export interface AppState {
   repos: Repository[]
   reposLoading: boolean
   remediations: Record<string, Remediation>
-  activePanel: Panel
   inputMode: InputMode
   fuzzyOpen: boolean
   filterOpen: boolean
@@ -45,7 +44,6 @@ const initialState: AppState = {
   repos: [],
   reposLoading: false,
   remediations: {},
-  activePanel: 'repos',
   inputMode: 'navigation',
   fuzzyOpen: false,
   filterOpen: false,
@@ -103,9 +101,6 @@ function reducer(state: AppState, action: Action): AppState {
         remediations: { ...state.remediations, [action.payload.finding_id]: action.payload },
       }
 
-    case 'ui/setPanel':
-      return { ...state, activePanel: action.payload }
-
     case 'ui/setTheme':
       return { ...state, theme: action.payload }
 
@@ -133,6 +128,12 @@ function reducer(state: AppState, action: Action): AppState {
     case 'scm/close':
       return { ...state, scmFlowOpen: false, inputMode: 'navigation' }
 
+    case 'help/open':
+      return { ...state, inputMode: 'help' }
+
+    case 'help/close':
+      return { ...state, inputMode: 'navigation' }
+
     case 'status/open':
       return { ...state, activeStatusJob: action.payload }
 
@@ -153,16 +154,14 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'nav/pushScreen': {
       const newStack = [...state.screenStack, action.payload]
-      const panel: Panel = action.payload === 'repos' ? 'repos' : 'findings'
-      return { ...state, screen: action.payload, screenStack: newStack, activePanel: panel }
+      return { ...state, screen: action.payload, screenStack: newStack }
     }
 
     case 'nav/popScreen': {
       if (state.screenStack.length <= 1) return state
       const newStack = state.screenStack.slice(0, -1)
-      const prev = newStack[newStack.length - 1]
-      const panel: Panel = prev === 'repos' ? 'repos' : 'findings'
-      return { ...state, screen: prev, screenStack: newStack, activePanel: panel }
+      const prev = newStack[newStack.length - 1]!
+      return { ...state, screen: prev, screenStack: newStack }
     }
 
     case 'repo/select':

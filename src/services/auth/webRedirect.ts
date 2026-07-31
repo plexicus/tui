@@ -71,6 +71,8 @@ export async function loginViaWebRedirect(
   let server: ReturnType<typeof Bun.serve> | null = null
   let port = 0
 
+  let handled = false
+
   for (let p = PORT_MIN; p <= PORT_MAX; p++) {
     try {
       server = Bun.serve({
@@ -90,13 +92,17 @@ export async function loginViaWebRedirect(
               { status: 400, headers: htmlHeaders },
             )
           }
-          if (echoState !== nonce) {
+          // Single-use: the state nonce briefly appears in this process's argv (passed to
+          // open/xdg-open below), so a co-resident process on a shared host could in theory
+          // race to replay it — reject anything past the first valid callback.
+          if (echoState !== nonce || handled) {
             return new Response(
               authPage({ ok: false, title: 'Authentication failed', message: 'Security check failed (state mismatch). Run <code>plexicus login</code> again.' }),
               { status: 400, headers: htmlHeaders },
             )
           }
 
+          handled = true
           queueMicrotask(() => resolveResult({ token, email }))
           return new Response(
             authPage({ ok: true, title: "You're authenticated", message: `Signed in as <strong>${escapeHtml(email)}</strong>.` }),

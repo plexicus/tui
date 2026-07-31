@@ -1,8 +1,8 @@
 import { useEffect, useRef, useMemo } from 'react'
 import { useAppState } from '../state/AppState.js'
-import { PlexicusApi } from '../services/plexicusApi.js'
-import { loadConfig } from '../services/config.js'
+import { createApiClient } from '../services/apiClient.js'
 import { severityRank } from '../utils/severity.js'
+import { friendlyError } from '../utils/errors.js'
 import type { Finding } from '../types.js'
 
 function sortFindings(findings: Finding[], sortBy: string | undefined, sortDir: string | undefined): Finding[] {
@@ -49,8 +49,7 @@ export function useFindings(opts?: { cve?: string }) {
     async function fetchFindings() {
       dispatch({ type: 'findings/loading', payload: true })
       try {
-        const config = await loadConfig()
-        const api = new PlexicusApi({ baseUrl: config.serverUrl, token: state.token ?? config.token })
+        const api = await createApiClient(state.token)
 
         const { findings, total, pageCount } = await api.getFindings(
           state.findingsFilter,
@@ -75,7 +74,7 @@ export function useFindings(opts?: { cve?: string }) {
       } catch (err) {
         if (controller.signal.aborted) return
         dispatch({ type: 'findings/loading', payload: false })
-        dispatch({ type: 'ui/setError', payload: err instanceof Error ? err.message : 'Failed to load findings' })
+        dispatch({ type: 'ui/setError', payload: friendlyError(err, 'Failed to load findings') })
       }
     }
 

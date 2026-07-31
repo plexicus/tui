@@ -18,7 +18,7 @@ const STATUS_MAP: Record<string, string> = {
 }
 
 const FindingAttributesSchema = z.object({
-  title: z.string(),
+  title: z.string().nullish().transform(v => v ?? 'Untitled finding'),
   severity: z.string().transform(s => (SEVERITY_MAP[s.toLowerCase()] ?? 'low') as 'critical' | 'high' | 'medium' | 'low' | 'informational'),
   severity_numerical: z.number().nullable().default(null),
   status: z.string().transform(s => (STATUS_MAP[s.toLowerCase()] ?? 'open') as 'open' | 'mitigated' | 'enriched' | 'ready'),
@@ -38,8 +38,8 @@ const FindingAttributesSchema = z.object({
   impact: z.number().nullable().default(null),
   confidence: z.number().nullable().default(null),
   estimated_epss: z.number().nullable().default(null),
-  repo_id: z.string(),
-  date: z.string(),
+  repo_id: z.string().nullish().transform(v => v ?? ''),
+  date: z.string().nullish().transform(v => v ?? ''),
   is_false_positive: z.boolean().default(false),
   duplicate: z.boolean().optional(),
   is_duplicate: z.boolean().optional(),
@@ -64,7 +64,7 @@ const FindingAttributesSchema = z.object({
   is_duplicate: a.is_duplicate ?? a.duplicate ?? false,
 }))
 
-export const FindingItemSchema = z.object({
+const FindingItemSchema = z.object({
   id: z.string(),
   attributes: FindingAttributesSchema,
 })
@@ -82,8 +82,8 @@ export const SingleFindingResponseSchema = z.object({
 })
 
 const RepoAttributesSchema = z.object({
-  nickname: z.string(),
-  uri: z.string(),
+  nickname: z.string().nullish().transform(v => v ?? 'unknown-repo'),
+  uri: z.string().nullish().transform(v => v ?? ''),
   active: z.boolean().nullish().transform(v => v ?? true),
   repo_type: z.string().nullish().transform(v => v ?? 'github'),
   status: z.string().nullish().transform(v => v ?? 'active'),
@@ -103,7 +103,7 @@ const RepoAttributesSchema = z.object({
   }).nullable().optional(),
 })
 
-export const RepoItemSchema = z.object({
+const RepoItemSchema = z.object({
   id: z.string(),
   attributes: RepoAttributesSchema,
 })
@@ -169,13 +169,7 @@ export const RemediationsCollectionSchema = z.object({
   prev: z.string().nullable().optional(),
 })
 
-export const PRSchema = z.object({
-  remediation_id: z.string(),
-  url: z.string(),
-  status: z.string(),
-})
-
-export const ApiTokenListItemSchema = z.object({
+const ApiTokenListItemSchema = z.object({
   name: z.string(),
   created_at: z.string(),
   expires_at: z.string().nullable().optional(),
@@ -196,7 +190,6 @@ export const ApiTokenCreatedSchema = z.object({
 }))
 
 export const ApiTokensListSchema = z.array(ApiTokenListItemSchema)
-export const RemediationsListSchema = z.array(RemediationSchema)
 
 export const SessionUserSchema = z.object({
   user_id: z.string(),
@@ -209,7 +202,7 @@ export const LoginResponseFlatSchema = z.object({
   token_type: z.string().default('Bearer'),
 })
 
-export const LoginResponse2FASchema = z.object({
+const LoginResponse2FASchema = z.object({
   otp_data: z.object({ secret: z.string() }),
   requires_2fa: z.literal(true),
   message: z.string(),
@@ -222,5 +215,3 @@ export const Verify2FAResponseSchema = z.object({
   access_token: z.string().optional(),
   token_type: z.string().optional(),
 })
-
-export const LoginResponseSchema = LoginResponseFlatSchema
