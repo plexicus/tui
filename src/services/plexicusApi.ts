@@ -79,7 +79,7 @@ function toBackendSeverity(severity: string): string {
 // (see STATUS_MAP in apiSchemas.ts); filters[status] matches raw values only, so
 // expand each selected category back to the raw values that map to it.
 const STATUS_FILTER_RAW_VALUES: Record<string, string[]> = {
-  open: ['pending_input'],
+  open: ['pending_input', 'failed'],
   enriched: ['enriched', 'issued'],
   ready: ['ready'],
   mitigated: ['completed', 'pr_submitted', 'solved'],
@@ -454,6 +454,8 @@ export class PlexicusApi {
         html_url: r.html_url ?? r.web_url ?? r.links?.html?.href ?? undefined,
         clone_url: r.clone_url ?? r.http_url_to_repo ?? undefined,
         private: r.private ?? r.is_private ?? r.visibility === 'private',
+        // GitHub/GitLab/Gitea: default_branch; Bitbucket: mainbranch.name
+        default_branch: r.default_branch ?? r.mainbranch?.name ?? undefined,
       } as ScmRepo)))
       if (rawRepos.length < PER_PAGE) break
       page++
@@ -504,7 +506,7 @@ export class PlexicusApi {
       source_control: sourceControl,
       data: {
         git_connection: {
-          repo_branch: 'main',
+          repo_branch: r.default_branch || 'main',
           repo_id: r.id,
           repo_url: r.html_url ?? r.clone_url ?? '',
         },

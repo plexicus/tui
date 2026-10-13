@@ -53,7 +53,7 @@ describe('PlexicusApi (live fetch path)', () => {
       mockFetchOnce(new Response(JSON.stringify({ items: [], total: 0 }), { status: 200 }))
       await api.getFindings({ statuses: ['open', 'mitigated'] })
       const url = new URL(calls[0]!.url)
-      expect(url.searchParams.get('filters[status]')).toBe('pending_input,completed,pr_submitted,solved')
+      expect(url.searchParams.get('filters[status]')).toBe('pending_input,failed,completed,pr_submitted,solved')
     })
 
     it('preserves CVSS decimal precision instead of flooring', async () => {
@@ -205,6 +205,26 @@ describe('PlexicusApi (live fetch path)', () => {
     })
   })
 
+  describe('externally mitigated findings', () => {
+    it('shows is_mitigated_externally findings as mitigated whatever the raw status', async () => {
+      mockFetchOnce(new Response(JSON.stringify({
+        items: [{ id: 'f1', attributes: { title: 't', severity: 'High', status: 'enriched', is_mitigated_externally: true } }],
+        total: 1,
+      }), { status: 200 }))
+      const { findings } = await api.getFindings()
+      expect(findings[0]!.status).toBe('mitigated')
+      expect(findings[0]!.is_mitigated_externally).toBe(true)
+    })
+  })
+
+  describe('open status filter', () => {
+    it('includes failed (still unresolved) findings', async () => {
+      mockFetchOnce(new Response(JSON.stringify({ items: [], total: 0 }), { status: 200 }))
+      await api.getFindings({ statuses: ['open'] })
+      expect(new URL(calls[0]!.url).searchParams.get('filters[status]')).toBe('pending_input,failed')
+    })
+  })
+
   describe('cursor pagination', () => {
     // Python's base64.urlsafe_b64decode (the backend) rejects unpadded input, so every cursor
     // we send must keep its '=' padding; the offsets below all need padding.
@@ -218,6 +238,32 @@ describe('PlexicusApi (live fetch path)', () => {
         const json = atob(cursor.replace(/-/g, '+').replace(/_/g, '/'))
         expect(JSON.parse(json)).toEqual({ offset: page * 25 })
       }
+    })
+  })
+
+  describe('default branch on import', () => {
+    it('maps default_branch / mainbranch.name from the provider list', async () => {
+      mockFetchOnce(new Response(JSON.stringify({
+        repositories: [
+          { id: 1, full_name: 'o/gh', html_url: 'https://github.com/o/gh', default_branch: 'develop' },
+          { uuid: '{2}', full_name: 'o/bb', mainbranch: { name: 'master' }, links: { html: { href: 'https://bitbucket.org/o/bb' } } },
+        ],
+      }), { status: 200 }))
+      const repos = await api.getScmRepos('github')
+      expect(repos.map(r => r.default_branch)).toEqual(['develop', 'master'])
+    })
+
+    it('sends the repository default branch to /repositories/bulk (main only as a fallback)', async () => {
+      const bodies: any[] = []
+      globalThis.fetch = mock(async (_u: string | URL | Request, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)))
+        return new Response('{}', { status: 202 })
+      }) as unknown as typeof fetch
+      await api.importRepositories([
+        { id: '1', name: 'a', full_name: 'o/a', html_url: 'https://github.com/o/a', default_branch: 'develop' },
+        { id: '2', name: 'b', full_name: 'o/b', html_url: 'https://github.com/o/b' },
+      ], 'github')
+      expect(bodies[0].data.map((d: any) => d.data.git_connection.repo_branch)).toEqual(['develop', 'main'])
     })
   })
 

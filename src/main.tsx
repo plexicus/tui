@@ -99,16 +99,27 @@ program
       process.exit(0)
     }
 
-    try {
-      const { PlexicusApi } = await import('./services/plexicusApi.js')
-      const api = new PlexicusApi({ baseUrl: config.serverUrl, token })
-      await api.logout()
-    } catch {
-      // best-effort — clear local token regardless of server response
+    // DELETE /sessions/self ends the user's WEB session (clears hashed_token, closes every
+    // websocket, resets provider OAuth state) and does not touch API tokens. Only session
+    // tokens (headless email/password login) go through it; a CLI/API token is just forgotten
+    // locally and can be revoked under Settings → API tokens.
+    const { isApiToken } = await import('./utils/token.js')
+    const apiToken = isApiToken(token)
+    if (!apiToken) {
+      try {
+        const { PlexicusApi } = await import('./services/plexicusApi.js')
+        const api = new PlexicusApi({ baseUrl: config.serverUrl, token })
+        await api.logout()
+      } catch {
+        // best-effort — clear local token regardless of server response
+      }
     }
 
     await saveConfig({ ...config, token: undefined })
     console.log(chalk.green('✓ Logged out successfully.'))
+    if (apiToken) {
+      console.log(chalk.gray('  The API token itself stays valid until it expires; revoke it in the web app under Settings → API tokens.'))
+    }
   })
 
 program

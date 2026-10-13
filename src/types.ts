@@ -29,6 +29,7 @@ export interface Finding {
   date: string
   is_false_positive: boolean
   is_duplicate: boolean
+  is_mitigated_externally: boolean
   is_sandbox: boolean
   owasps: string[]
   policy_rules: unknown[]
@@ -103,6 +104,7 @@ export interface ScmRepo {
   html_url?: string
   clone_url?: string
   private?: boolean
+  default_branch?: string
 }
 
 export interface StatusJob {
