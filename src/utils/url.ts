@@ -8,3 +8,10 @@ export function deriveWebUrl(config: Pick<Config, 'serverUrl' | 'webUrl'>): stri
   if (!match) return null
   return `${match[1]}${match[2]}`.replace(/\/$/, '')
 }
+
+// Default WebSocket base derived from the REST URL: same host, ws/wss scheme (an http:// server
+// must not be upgraded to wss://).
+export function deriveWsUrl(serverUrl: string, wsUrl?: string): string {
+  if (wsUrl) return wsUrl.replace(/\/$/, '')
+  return serverUrl.replace(/\/$/, '').replace(/^http:\/\//, 'ws://').replace(/^https:\/\//, 'wss://')
+}

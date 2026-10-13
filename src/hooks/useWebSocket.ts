@@ -3,11 +3,8 @@ import { useAppState } from '../state/AppState.js'
 import { plexicusWs } from '../services/websocket.js'
 import { RemediationSchema } from '../services/apiSchemas.js'
 import type { Config } from '../services/config.js'
-
-function deriveWsUrl(serverUrl: string, wsUrl?: string): string {
-  if (wsUrl) return wsUrl
-  return serverUrl.replace(/^https?:\/\//, 'wss://')
-}
+import { deriveWsUrl } from '../utils/url.js'
+import { frameFields } from '../utils/wsFrame.js'
 
 export function useWebSocket(config: Config) {
   const { state, dispatch } = useAppState()
@@ -23,7 +20,8 @@ export function useWebSocket(config: Config) {
       dispatch({ type: 'ws/setConnected', payload: connected })
     })
 
-    plexicusWs.on('trigger-check-repository', (msg) => {
+    plexicusWs.on('trigger-check-repository', (raw) => {
+      const msg = frameFields(raw)
       const id = String(msg.repository_id ?? msg._id ?? '')
       dispatch({
         type: 'status/open',
@@ -31,7 +29,8 @@ export function useWebSocket(config: Config) {
       })
     })
 
-    plexicusWs.on('status-repository', (msg) => {
+    plexicusWs.on('status-repository', (raw) => {
+      const msg = frameFields(raw)
       const id = String(msg.repository_id ?? msg._id ?? '')
       const logs = msg.page_console ? [String(msg.page_console)] : []
       dispatch({
@@ -40,7 +39,8 @@ export function useWebSocket(config: Config) {
       })
     })
 
-    plexicusWs.on('trigger-finish-repository', (msg) => {
+    plexicusWs.on('trigger-finish-repository', (raw) => {
+      const msg = frameFields(raw)
       const id = String(msg.repository_id ?? msg._id ?? '')
       dispatch({ type: 'status/update', payload: { id, status: 'done', progress: 100, logs: [] } })
       setTimeout(() => dispatch({ type: 'status/close' }), 2000)
@@ -56,6 +56,21 @@ export function useWebSocket(config: Config) {
       if (rem.status === 'ready' || rem.status === 'error') {
         setTimeout(() => dispatch({ type: 'status/close' }), 2000)
       }
+    })
+
+    // Scan heartbeat/finalization pushed by the scan pipeline (routes/plexalyzer.py, scan_runs.py).
+    plexicusWs.on('scan-progress', (raw) => {
+      const msg = frameFields(raw)
+      const id = String(msg.repository_id ?? '')
+      if (!id) return
+      dispatch({ type: 'status/update', payload: { id, status: 'scanning', progress: Number(msg.percentage_complete ?? 0), logs: [] } })
+    })
+
+    plexicusWs.on('scan-run-finalized', (raw) => {
+      const id = String(frameFields(raw).repository_id ?? '')
+      if (!id) return
+      dispatch({ type: 'status/update', payload: { id, status: 'done', progress: 100, logs: [] } })
+      setTimeout(() => dispatch({ type: 'status/close' }), 2000)
     })
 
     plexicusWs.on('workflow_status', (msg) => {
