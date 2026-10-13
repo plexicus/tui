@@ -8,6 +8,7 @@ const SEVERITY_MAP: Record<string, string> = {
 const STATUS_MAP: Record<string, string> = {
   open: 'open',
   pending_input: 'open',
+  failed: 'open', // FindingStatus.FAILED: enrichment failed; still an unresolved finding
   enriched: 'enriched',
   issued: 'enriched',
   ready: 'ready',
@@ -202,10 +203,14 @@ export const LoginResponseFlatSchema = z.object({
   token_type: z.string().default('Bearer'),
 })
 
+// pending_token is the short-lived credential that only POST /sessions/self/2fa-verifications
+// accepts (fastapi/models/user.py User2FARequired). otp_data is deliberately optional and never
+// read: the backend returned the TOTP secret there (platform defect P87) and should stop.
 const LoginResponse2FASchema = z.object({
-  otp_data: z.object({ secret: z.string() }),
+  otp_data: z.object({ secret: z.string().optional() }).optional(),
   requires_2fa: z.literal(true),
   message: z.string(),
+  pending_token: z.string().optional(),
 })
 
 export const LoginResponseUnion = z.union([LoginResponseFlatSchema, LoginResponse2FASchema])

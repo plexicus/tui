@@ -17,7 +17,7 @@ interface ApiConfig {
 
 export type LoginResult =
   | { kind: 'ok'; access_token: string; token_type: string }
-  | { kind: '2fa'; secret: string }
+  | { kind: '2fa'; pendingToken?: string }
 
 interface FindingsResult {
   findings: Finding[]
@@ -61,9 +61,11 @@ async function loadFixture(name: string): Promise<unknown> {
   return data
 }
 
-function encodeCursor(offset: number): string {
-  return btoa(JSON.stringify({ offset }))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+// The backend decodes cursors with base64.urlsafe_b64decode, which REQUIRES the '=' padding
+// (fastapi/config/pagination.py:decode_cursor). Stripping it made every page after the first
+// answer 400 "Invalid `cursor` value" (offsets 25, 50, 75, ...).
+export function encodeCursor(offset: number): string {
+  return btoa(JSON.stringify({ offset })).replace(/\+/g, '-').replace(/\//g, '_')
 }
 
 // The backend stores severity Title-Cased ("Critical", "High", ...) and matches
@@ -253,7 +255,7 @@ export class PlexicusApi {
     const raw = await this.fetch<unknown>('POST', '/sessions', { email, password }, undefined, 'raw')
     const parsed = LoginResponseUnion.parse(raw)
     if ('requires_2fa' in parsed && parsed.requires_2fa) {
-      return { kind: '2fa', secret: parsed.otp_data.secret }
+      return { kind: '2fa', pendingToken: parsed.pending_token }
     }
     const flat = parsed as { access_token: string; token_type: string }
     return { kind: 'ok', access_token: flat.access_token, token_type: flat.token_type }
@@ -272,14 +274,17 @@ export class PlexicusApi {
     return this.fetch<SessionUser>('GET', '/sessions/self', undefined, SessionUserSchema, 'raw')
   }
 
-  async verify2FA(email: string, otp_code: string): Promise<string> {
+  async verify2FA(email: string, otp_code: string, pendingToken?: string): Promise<string> {
     if (MOCK_MODE) {
       const data = await loadFixture('login')
       const parsed = LoginResponseFlatSchema.parse(data)
       return parsed.access_token
     }
-    // email identifies the user: at login-time 2FA there is no Bearer token yet
-    const raw = await this.fetch<unknown>('POST', '/sessions/self/2fa-verifications', { otp_code, email }, undefined, 'raw')
+    // The backend identifies the pending login by pending_token (from POST /sessions); email is
+    // kept for older backends that still resolve the user by address.
+    const body: Record<string, string> = { otp_code, email }
+    if (pendingToken) body.pending_token = pendingToken
+    const raw = await this.fetch<unknown>('POST', '/sessions/self/2fa-verifications', body, undefined, 'raw')
     const parsed = Verify2FAResponseSchema.parse(raw)
     if (!parsed.verify_otp || !parsed.access_token) {
       throw new PlexicusAuthError()

@@ -158,14 +158,34 @@ describe('PlexicusApi (live fetch path)', () => {
       expect(result).toEqual({ kind: 'ok', access_token: 'tok-1', token_type: 'Bearer' })
     })
 
-    it('returns kind=2fa with the OTP secret when the backend requires it', async () => {
+    it('returns kind=2fa with the pending_token and never surfaces the OTP secret', async () => {
       mockFetchOnce(new Response(JSON.stringify({
         requires_2fa: true,
         message: 'OTP required',
         otp_data: { secret: 'JBSWY3DPEHPK3PXP' },
+        pending_token: 'pending.jwt.value',
       }), { status: 200 }))
       const result = await api.login('a@b.com', 'pw')
-      expect(result).toEqual({ kind: '2fa', secret: 'JBSWY3DPEHPK3PXP' })
+      expect(result).toEqual({ kind: '2fa', pendingToken: 'pending.jwt.value' })
+    })
+
+    it('accepts a 2FA challenge without otp_data (backend stopped returning the secret)', async () => {
+      mockFetchOnce(new Response(JSON.stringify({
+        requires_2fa: true, message: 'OTP required', pending_token: 'p.t',
+      }), { status: 200 }))
+      const result = await api.login('a@b.com', 'pw')
+      expect(result).toEqual({ kind: '2fa', pendingToken: 'p.t' })
+    })
+
+    it('verify2FA sends pending_token with the OTP code', async () => {
+      let sent: Record<string, string> = {}
+      globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+        sent = JSON.parse(String(init?.body))
+        return new Response(JSON.stringify({ verify_otp: true, access_token: 'tok-3' }), { status: 200 })
+      }) as unknown as typeof fetch
+      const token = await api.verify2FA('a@b.com', '123456', 'p.t')
+      expect(token).toBe('tok-3')
+      expect(sent).toEqual({ otp_code: '123456', email: 'a@b.com', pending_token: 'p.t' })
     })
 
     it('verify2FA returns the access token on success', async () => {
@@ -182,6 +202,22 @@ describe('PlexicusApi (live fetch path)', () => {
     it('verify2FA throws PlexicusAuthError when verified but no token is returned', async () => {
       mockFetchOnce(new Response(JSON.stringify({ verify_otp: true }), { status: 200 }))
       await expect(api.verify2FA('a@b.com', '123456')).rejects.toBeInstanceOf(PlexicusAuthError)
+    })
+  })
+
+  describe('cursor pagination', () => {
+    // Python's base64.urlsafe_b64decode (the backend) rejects unpadded input, so every cursor
+    // we send must keep its '=' padding; the offsets below all need padding.
+    it('keeps base64 padding so the backend can decode pages after the first', async () => {
+      for (const page of [1, 2, 3, 4]) {
+        mockFetchOnce(new Response(JSON.stringify({ items: [], total: 0 }), { status: 200 }))
+        calls.length = 0
+        await api.getFindings({}, page)
+        const cursor = new URL(calls[0]!.url).searchParams.get('cursor')!
+        expect(cursor.length % 4).toBe(0)
+        const json = atob(cursor.replace(/-/g, '+').replace(/_/g, '/'))
+        expect(JSON.parse(json)).toEqual({ offset: page * 25 })
+      }
     })
   })
 
