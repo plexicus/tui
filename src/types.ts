@@ -94,7 +94,7 @@ export interface SessionUser {
 
 export type InputMode = 'navigation' | 'repl' | 'login' | 'filter' | 'scm' | 'help'
 
-export type ScmProvider = 'github' | 'gitlab' | 'bitbucket' | 'gitea'
+export type ScmProvider = 'github' | 'gitlab' | 'bitbucket' | 'gitea' | 'forgejo' | 'azure_devops'
 
 export interface ScmRepo {
   id: string

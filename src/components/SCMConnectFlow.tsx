@@ -8,6 +8,7 @@ import { loadConfig } from '../services/config.js'
 import { friendlyError } from '../utils/errors.js'
 import { Spinner } from './design-system/Spinner.js'
 import type { ScmProvider, ScmRepo } from '../types.js'
+import { guessProvider } from '../utils/scm.js'
 
 type FlowStep =
   | 'pick-provider'
@@ -23,6 +24,8 @@ const PROVIDERS: { id: ScmProvider; label: string }[] = [
   { id: 'gitlab',    label: 'GitLab' },
   { id: 'bitbucket', label: 'Bitbucket Cloud' },
   { id: 'gitea',     label: 'Gitea' },
+  { id: 'forgejo',   label: 'Forgejo' },
+  { id: 'azure_devops', label: 'Azure DevOps' },
 ]
 
 export function SCMConnectFlow({ onClose }: { onClose: () => void }) {
@@ -92,12 +95,6 @@ export function SCMConnectFlow({ onClose }: { onClose: () => void }) {
     const url = manualRepoUrl.trim()
     if (!url) return
     const nickname = manualNickname.trim() || url.split('/').filter(Boolean).pop() || url
-    const guessProvider = (u: string): string => {
-      if (u.includes('github.com')) return 'github'
-      if (u.includes('gitlab.com')) return 'gitlab'
-      if (u.includes('bitbucket.org')) return 'bitbucket'
-      return 'gitea'
-    }
     setStep('importing')
     try {
       const api = await createApiClient(state.token)

@@ -416,7 +416,7 @@ export class PlexicusApi {
   }
 
   async checkScmValidity(): Promise<Record<string, boolean>> {
-    if (MOCK_MODE) return { github: false, gitlab: false, bitbucket: false, gitea: false }
+    if (MOCK_MODE) return { github: false, gitlab: false, bitbucket: false, gitea: false, forgejo: false, azure_devops: false }
     // Response shape: { status: bool, message: str, data: { github: bool, ... } }
     const raw = await this.fetch<unknown>('GET', '/integrations/scm/validity', undefined, undefined, 'raw')
     if (raw && typeof raw === 'object' && 'data' in raw && raw.data && typeof raw.data === 'object') {
