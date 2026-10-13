@@ -30,17 +30,30 @@ describe('ConfigSetCommand', () => {
     expect(logs.some(l => l.includes('✓'))).toBe(true)
   })
 
-  it('shows masked token in output', async () => {
-    const logs: string[] = []
+  it('refuses to store a token in the config and never echoes it', async () => {
+    const out: string[] = []
+    const origErr = console.error
     const origLog = console.log
-    console.log = (...args: unknown[]) => logs.push(args.join(' '))
+    const origExit = process.exit
+    let exitCode: number | undefined
+    console.error = (...args: unknown[]) => out.push(args.join(' '))
+    console.log = (...args: unknown[]) => out.push(args.join(' '))
+    process.exit = ((code?: number) => {
+      exitCode = code
+      return undefined as never
+    }) as typeof process.exit
 
-    const { default: ConfigSetCommand } = await import('../../src/commands/configSet.js')
-    await ConfigSetCommand('token', 'sk-secret')
-
-    console.log = origLog
-    expect(logs.some(l => l.includes('***'))).toBe(true)
-    expect(logs.every(l => !l.includes('sk-secret'))).toBe(true)
+    try {
+      const { default: ConfigSetCommand } = await import('../../src/commands/configSet.js')
+      await ConfigSetCommand('token', 'sk-secret')
+    } finally {
+      console.error = origErr
+      console.log = origLog
+      process.exit = origExit
+    }
+    expect(exitCode).toBe(1)
+    expect(out.join('\n')).toContain('plexicus login')
+    expect(out.every(l => !l.includes('sk-secret'))).toBe(true)
   })
 
   it('persists value to config file', async () => {

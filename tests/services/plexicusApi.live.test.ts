@@ -151,57 +151,39 @@ describe('PlexicusApi (live fetch path)', () => {
     })
   })
 
-  describe('login() / verify2FA() 2FA flow', () => {
-    it('returns kind=ok for a flat access_token response', async () => {
-      mockFetchOnce(new Response(JSON.stringify({ access_token: 'tok-1', token_type: 'Bearer' }), { status: 200 }))
-      const result = await api.login('a@b.com', 'pw')
-      expect(result).toEqual({ kind: 'ok', access_token: 'tok-1', token_type: 'Bearer' })
-    })
-
-    it('returns kind=2fa with the pending_token and never surfaces the OTP secret', async () => {
-      mockFetchOnce(new Response(JSON.stringify({
-        requires_2fa: true,
-        message: 'OTP required',
-        otp_data: { secret: 'JBSWY3DPEHPK3PXP' },
-        pending_token: 'pending.jwt.value',
-      }), { status: 200 }))
-      const result = await api.login('a@b.com', 'pw')
-      expect(result).toEqual({ kind: '2fa', pendingToken: 'pending.jwt.value' })
-    })
-
-    it('accepts a 2FA challenge without otp_data (backend stopped returning the secret)', async () => {
-      mockFetchOnce(new Response(JSON.stringify({
-        requires_2fa: true, message: 'OTP required', pending_token: 'p.t',
-      }), { status: 200 }))
-      const result = await api.login('a@b.com', 'pw')
-      expect(result).toEqual({ kind: '2fa', pendingToken: 'p.t' })
-    })
-
-    it('verify2FA sends pending_token with the OTP code', async () => {
-      let sent: Record<string, string> = {}
+  describe('client identification, upgrade and logout', () => {
+    it('sends X-Plexicus-Client: tui/<version> on every request', async () => {
+      let headers: Record<string, string> = {}
       globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
-        sent = JSON.parse(String(init?.body))
-        return new Response(JSON.stringify({ verify_otp: true, access_token: 'tok-3' }), { status: 200 })
+        headers = init?.headers as Record<string, string>
+        return new Response(JSON.stringify({ items: [], total: 0 }), { status: 200 })
       }) as unknown as typeof fetch
-      const token = await api.verify2FA('a@b.com', '123456', 'p.t')
-      expect(token).toBe('tok-3')
-      expect(sent).toEqual({ otp_code: '123456', email: 'a@b.com', pending_token: 'p.t' })
+      await api.getFindings()
+      expect(headers['X-Plexicus-Client']).toMatch(/^tui\/[0-9A-Za-z._+-]+$/)
+      expect(headers['Authorization']).toBe('Bearer tok')
     })
 
-    it('verify2FA returns the access token on success', async () => {
-      mockFetchOnce(new Response(JSON.stringify({ verify_otp: true, access_token: 'tok-2' }), { status: 200 }))
-      const token = await api.verify2FA('a@b.com', '123456')
-      expect(token).toBe('tok-2')
+    it.each([410, 426])('maps HTTP %i to an upgrade-required error', async status => {
+      mockFetchOnce(new Response(JSON.stringify({ error: 'upgrade_required' }), { status }))
+      const err = await api.getFindings().catch(e => e)
+      expect(err.code).toBe('upgrade_required')
+      expect(err.message).toContain('Upgrade')
     })
 
-    it('verify2FA throws PlexicusAuthError when the OTP is rejected', async () => {
-      mockFetchOnce(new Response(JSON.stringify({ verify_otp: false }), { status: 200 }))
-      await expect(api.verify2FA('a@b.com', '000000')).rejects.toBeInstanceOf(PlexicusAuthError)
+    it('logout revokes the calling API token via DELETE /users/me/api-tokens/self', async () => {
+      let seen = { url: '', method: '' }
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        seen = { url: String(url), method: String(init?.method) }
+        return new Response(null, { status: 204 })
+      }) as unknown as typeof fetch
+      await api.logout()
+      expect(seen).toEqual({ url: 'https://api.example.com/users/me/api-tokens/self', method: 'DELETE' })
     })
 
-    it('verify2FA throws PlexicusAuthError when verified but no token is returned', async () => {
-      mockFetchOnce(new Response(JSON.stringify({ verify_otp: true }), { status: 200 }))
-      await expect(api.verify2FA('a@b.com', '123456')).rejects.toBeInstanceOf(PlexicusAuthError)
+    it('redacts tokens echoed back in an error body', async () => {
+      mockFetchOnce(new Response('bad token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1In0.sigsigsig', { status: 400 }))
+      const err = await api.getFindings().catch(e => e)
+      expect(err.message).not.toContain('eyJhbGci')
     })
   })
 

@@ -1,7 +1,0 @@
-{
-  "otp_data": {
-    "secret": "JBSWY3DPEHPK3PXP"
-  },
-  "requires_2fa": true,
-  "message": "2FA required. Enter your OTP code."
-}

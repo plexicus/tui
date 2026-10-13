@@ -200,26 +200,3 @@ export const SessionUserSchema = z.object({
   client_id: z.string(),
   email: z.string(),
 }).transform(u => ({ id: u.user_id, client_id: u.client_id, email: u.email }))
-
-export const LoginResponseFlatSchema = z.object({
-  access_token: z.string(),
-  token_type: z.string().default('Bearer'),
-})
-
-// pending_token is the short-lived credential that only POST /sessions/self/2fa-verifications
-// accepts (fastapi/models/user.py User2FARequired). otp_data is deliberately optional and never
-// read: the backend returned the TOTP secret there (platform defect P87) and should stop.
-const LoginResponse2FASchema = z.object({
-  otp_data: z.object({ secret: z.string().optional() }).optional(),
-  requires_2fa: z.literal(true),
-  message: z.string(),
-  pending_token: z.string().optional(),
-})
-
-export const LoginResponseUnion = z.union([LoginResponseFlatSchema, LoginResponse2FASchema])
-
-export const Verify2FAResponseSchema = z.object({
-  verify_otp: z.boolean(),
-  access_token: z.string().optional(),
-  token_type: z.string().optional(),
-})

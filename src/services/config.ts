@@ -16,11 +16,22 @@ export const ConfigSchema = z.object({
   serverUrl: z.string().url().default('https://api.app.plexicus.ai'),
   webUrl: optionalUrl,
   wsUrl: z.string().optional(),
-  token: z.string().optional(),
   theme: z.enum(['dark', 'light', 'plexicus']).default('plexicus'),
 })
 
+// Tokens are NOT part of the config: they live in the OS keychain (services/auth/credentials.ts).
+// A `token` key in an old config.json is read once by readLegacyToken() for the migration and is
+// never returned by loadConfig() nor written back by saveConfig().
 export type Config = z.infer<typeof ConfigSchema>
+
+export async function readLegacyToken(): Promise<string | null> {
+  try {
+    const json = JSON.parse(await readFile(getConfigPath(), 'utf-8')) as { token?: unknown }
+    return typeof json.token === 'string' && json.token ? json.token : null
+  } catch {
+    return null
+  }
+}
 
 export async function loadConfig(): Promise<Config> {
   const configPath = getConfigPath()
@@ -63,6 +74,12 @@ export async function saveConfig(config: Config): Promise<void> {
 }
 
 export async function setConfigValue(key: string, value: string): Promise<Config> {
+  if (key === 'token' || key.startsWith('token.')) {
+    throw new PlexicusConfigError('Tokens are not stored in the config. Run `plexicus login` (or set PLEXICUS_TOKEN for non-interactive use).')
+  }
+  // A legacy config.json token is moved to the keychain before the file is rewritten.
+  const { migrateLegacyToken } = await import('./auth/credentials.js')
+  await migrateLegacyToken()
   const current = await loadConfig()
   const updated = set({ ...current }, key, value)
   const validated = ConfigSchema.parse(updated)

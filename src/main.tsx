@@ -10,129 +10,99 @@ chalk.level = 3
 
 const { version } = await import('../package.json', { with: { type: 'json' } })
 
+// Credentials: `plexicus login` (loopback + PKCE, or --device) stores a revocable token in the OS
+// keychain. There is no --token, no password login. PLEXICUS_TOKEN is honoured for non-interactive
+// use only (never stored, never echoed; a warning is printed on a TTY).
+async function startSession(): Promise<{ config: import('./services/config.js').Config; token: string }> {
+  const { loadConfig } = await import('./services/config.js')
+  const { migrateLegacyToken, resolveCredential } = await import('./services/auth/credentials.js')
+  const { printSplash } = await import('./assets/splash.js')
+  const config = await loadConfig()
+
+  const migration = await migrateLegacyToken()
+  if (migration.warning) console.warn(chalk.yellow(migration.warning))
+  if (migration.migrated) console.log(chalk.gray('Moved your stored token from config.json to the credential store.'))
+
+  printSplash(version, config.serverUrl)
+
+  if (process.env.MOCK_PLEXICUS === '1') return { config, token: process.env.PLEXICUS_TOKEN ?? 'mock-token' }
+
+  const cred = await resolveCredential({ serverUrl: config.serverUrl })
+  if (cred) {
+    if (cred.warning) console.warn(chalk.yellow(cred.warning))
+    return { config, token: cred.token }
+  }
+
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    console.error(chalk.red('Not logged in. Run `plexicus login` (or set PLEXICUS_TOKEN for non-interactive use).'))
+    process.exit(1)
+  }
+  console.log(chalk.cyan('You are not logged in. Starting login...'))
+  const { runLogin } = await import('./commands/login.js')
+  try {
+    const out = await runLogin(config)
+    console.log(chalk.green(`✓ Authenticated${out.email ? ` as ${out.email}` : ''}`))
+    return { config, token: out.token }
+  } catch (err: unknown) {
+    console.error(chalk.red(friendlyError(err, 'Login failed')))
+    process.exit(1)
+  }
+}
+
 program
   .name('plexicus')
   .description('Plexicus ASPM TUI — security posture at your fingertips')
   .version(version)
   .option('--repo <name>', 'filter findings to a specific repository')
   .option('--cve <id>', 'jump directly to a finding by CVE ID')
-  .option('--token <token>', 'authenticate with a Bearer token (prefer PLEXICUS_TOKEN env var — argv is visible to other users via ps/procfs)')
   .action(async (options) => {
-    const { loadConfig } = await import('./services/config.js')
-    const { printSplash } = await import('./assets/splash.js')
-    const config = await loadConfig()
-
-    printSplash(version, config.serverUrl)
-
-    if (options.token) {
-      console.warn(chalk.yellow('Warning: --token exposes your token in the process list (ps, /proc). Prefer PLEXICUS_TOKEN.'))
-    }
-
-    const token = options.token ?? process.env.PLEXICUS_TOKEN ?? config.token
-
+    const { config, token } = await startSession()
     const { default: App } = await import('./components/App.js')
     render(React.createElement(App, { ...options, config, token }))
   })
 
 program
   .command('login')
-  .description('Authenticate with the Plexicus API')
-  .option('--token <token>', 'skip interactive login, store this token directly (prefer PLEXICUS_TOKEN env var — argv is visible to other users via ps/procfs)')
-  .option('--headless', 'use email/password instead of browser redirect')
+  .description('Log in through your browser (loopback + PKCE); stores a revocable token in the OS keychain')
+  .option('--device', 'use the device flow: print a code to enter at the verification URL (SSH, headless)')
   .action(async (options) => {
-    const { loadConfig, saveConfig } = await import('./services/config.js')
-    const { AppStateProvider } = await import('./state/AppState.js')
-    const { LoginForm } = await import('./components/LoginForm.js')
+    const { loadConfig } = await import('./services/config.js')
+    const { migrateLegacyToken } = await import('./services/auth/credentials.js')
     const { printSplash } = await import('./assets/splash.js')
+    const { runLogin } = await import('./commands/login.js')
     const config = await loadConfig()
-
+    await migrateLegacyToken()
     printSplash(version, config.serverUrl)
-
-    const onDone = (email: string) => {
-      console.log(chalk.green(`✓ Authenticated as ${email}`))
+    try {
+      const out = await runLogin(config, { device: Boolean(options.device) })
+      console.log(chalk.green(`✓ Authenticated${out.email ? ` as ${out.email}` : ''}`))
       process.exit(0)
+    } catch (err: unknown) {
+      console.error(chalk.red(friendlyError(err, 'Login failed')))
+      process.exit(1)
     }
-
-    if (options.token) {
-      console.warn(chalk.yellow('Warning: --token exposes your token in the process list (ps, /proc). Prefer PLEXICUS_TOKEN.'))
-      const loginEl = React.createElement(LoginForm, { prefilledToken: options.token, onDone })
-      render(React.createElement(AppStateProvider, { initialTheme: config.theme, children: loginEl }))
-      return
-    }
-
-    const { canOpenBrowser } = await import('./utils/canOpenBrowser.js')
-    const { deriveWebUrl } = await import('./utils/url.js')
-
-    const webUrl = deriveWebUrl(config)
-    const useWebRedirect = !options.headless && !!webUrl && canOpenBrowser()
-
-    if (useWebRedirect) {
-      try {
-        const { loginViaWebRedirect } = await import('./services/auth/webRedirect.js')
-        const { token, email } = await loginViaWebRedirect(webUrl!)
-        await saveConfig({ ...config, token })
-        console.log(chalk.green(`✓ Authenticated as ${email}`))
-        process.exit(0)
-      } catch (err: unknown) {
-        const msg = friendlyError(err, 'Browser auth failed')
-        console.warn(chalk.yellow(`Browser auth failed (${msg}), falling back to password login.`))
-      }
-    } else if (!options.headless && !webUrl) {
-      console.warn(chalk.yellow('webUrl not configured — falling back to email/password login.'))
-      console.warn(chalk.gray('  Set it with: plexicus config set webUrl https://your-app-domain'))
-    }
-
-    const loginEl = React.createElement(LoginForm, { onDone })
-    render(React.createElement(AppStateProvider, { initialTheme: config.theme, children: loginEl }))
   })
 
 program
   .command('logout')
-  .description('Sign out and remove stored credentials')
+  .description('Revoke the stored token on the server and remove it from this machine')
   .action(async () => {
-    const { loadConfig, saveConfig } = await import('./services/config.js')
+    const { loadConfig } = await import('./services/config.js')
+    const { runLogout } = await import('./commands/logout.js')
     const config = await loadConfig()
-    const token = process.env.PLEXICUS_TOKEN ?? config.token
-
-    if (!token) {
-      console.log(chalk.yellow('Not logged in.'))
-      process.exit(0)
+    const result = await runLogout(config)
+    for (const line of result.messages) {
+      console.log(result.server === 'failed' ? chalk.yellow(line) : chalk.green(line))
     }
-
-    // DELETE /sessions/self ends the user's WEB session (clears hashed_token, closes every
-    // websocket, resets provider OAuth state) and does not touch API tokens. Only session
-    // tokens (headless email/password login) go through it; a CLI/API token is just forgotten
-    // locally and can be revoked under Settings → API tokens.
-    const { isApiToken } = await import('./utils/token.js')
-    const apiToken = isApiToken(token)
-    if (!apiToken) {
-      try {
-        const { PlexicusApi } = await import('./services/plexicusApi.js')
-        const api = new PlexicusApi({ baseUrl: config.serverUrl, token })
-        await api.logout()
-      } catch {
-        // best-effort — clear local token regardless of server response
-      }
-    }
-
-    await saveConfig({ ...config, token: undefined })
-    console.log(chalk.green('✓ Logged out successfully.'))
-    if (apiToken) {
-      console.log(chalk.gray('  The API token itself stays valid until it expires; revoke it in the web app under Settings → API tokens.'))
-    }
+    process.exit(result.exitCode)
   })
 
 program
   .command('repos')
   .description('Browse and manage repositories')
   .action(async () => {
-    const { loadConfig } = await import('./services/config.js')
+    const { config, token } = await startSession()
     const { default: App } = await import('./components/App.js')
-    const { printSplash } = await import('./assets/splash.js')
-    const config = await loadConfig()
-
-    printSplash(version, config.serverUrl)
-    const token = process.env.PLEXICUS_TOKEN ?? config.token
     render(React.createElement(App, { config, token }))
   })
 
