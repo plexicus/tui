@@ -44,6 +44,8 @@ const FindingAttributesSchema = z.object({
   is_false_positive: z.boolean().default(false),
   duplicate: z.boolean().optional(),
   is_duplicate: z.boolean().optional(),
+  // Set by POST /findings/{id}/mark-as-mitigated; the status field itself is not changed.
+  is_mitigated_externally: z.boolean().default(false),
   is_sandbox: z.boolean().default(false),
   owasps: z.array(
     z.union([
@@ -63,6 +65,7 @@ const FindingAttributesSchema = z.object({
 }).transform(a => ({
   ...a,
   is_duplicate: a.is_duplicate ?? a.duplicate ?? false,
+  status: (a.is_mitigated_externally ? 'mitigated' : a.status) as typeof a.status,
 }))
 
 const FindingItemSchema = z.object({

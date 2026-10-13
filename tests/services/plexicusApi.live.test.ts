@@ -205,6 +205,18 @@ describe('PlexicusApi (live fetch path)', () => {
     })
   })
 
+  describe('externally mitigated findings', () => {
+    it('shows is_mitigated_externally findings as mitigated whatever the raw status', async () => {
+      mockFetchOnce(new Response(JSON.stringify({
+        items: [{ id: 'f1', attributes: { title: 't', severity: 'High', status: 'enriched', is_mitigated_externally: true } }],
+        total: 1,
+      }), { status: 200 }))
+      const { findings } = await api.getFindings()
+      expect(findings[0]!.status).toBe('mitigated')
+      expect(findings[0]!.is_mitigated_externally).toBe(true)
+    })
+  })
+
   describe('cursor pagination', () => {
     // Python's base64.urlsafe_b64decode (the backend) rejects unpadded input, so every cursor
     // we send must keep its '=' padding; the offsets below all need padding.
