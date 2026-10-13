@@ -29,22 +29,24 @@ fi
 if [ "$DRY" = 1 ]; then
   echo "DRY RUN: would publish $TAG (prerelease=$PRE) to $TARGET $REPO with:"; printf '  %s\n' "${FILES[@]}"; exit 0
 fi
+# The CI image has curl and git but no jq/python: JSON handling goes through Bun (always present).
+jget() { bun -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); const v=eval("d"+process.env.JPATH); console.log(v===undefined||v===null?"":v)'; }
 hdr=(-H "Authorization: Bearer $TOKEN" -H "Accept: application/json")
 [ "$TARGET" = forgejo ] && hdr=(-H "Authorization: token $TOKEN" -H "Accept: application/json")
 rel="$(curl -sS "${hdr[@]}" "$API/repos/$REPO/releases/tags/$TAG" -w '\n%{http_code}')"
 code="${rel##*$'\n'}"; body="${rel%$'\n'*}"
 if [ "$code" = 200 ]; then
-  ID="$(printf '%s' "$body" | jq -r .id)"
+  ID="$(printf '%s' "$body" | JPATH='.id' jget)"
 else
-  payload="$(jq -n --arg t "$TAG" --arg n "$TAG" --arg b "$NOTES" --argjson p "$PRE" '{tag_name:$t,name:$n,body:$b,draft:false,prerelease:$p}')"
-  ID="$(curl -sS --fail-with-body "${hdr[@]}" -H 'Content-Type: application/json' -X POST "$API/repos/$REPO/releases" -d "$payload" | jq -r .id)"
+  payload="$(T="$TAG" B="$NOTES" P="$PRE" bun -e 'console.log(JSON.stringify({tag_name:process.env.T,name:process.env.T,body:process.env.B,draft:false,prerelease:process.env.P==="true"}))')"
+  ID="$(curl -sS --fail-with-body "${hdr[@]}" -H 'Content-Type: application/json' -X POST "$API/repos/$REPO/releases" -d "$payload" | JPATH='.id' jget)"
 fi
 [ -n "$ID" ] && [ "$ID" != null ] || { echo "could not resolve release id" >&2; exit 1; }
 echo "release id: $ID ($TARGET $REPO $TAG)"
 existing="$(curl -sS "${hdr[@]}" "$API/repos/$REPO/releases/$ID/assets")"
 for f in "${FILES[@]}"; do
   name="$(basename "$f")"
-  aid="$(printf '%s' "$existing" | jq -r --arg n "$name" '.[]? | select(.name==$n) | .id' | head -1)"
+  aid="$(printf '%s' "$existing" | N="$name" bun -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); const a=(Array.isArray(d)?d:[]).find(x=>x.name===process.env.N); console.log(a?a.id:"")')"
   if [ -n "$aid" ]; then curl -sS --fail-with-body "${hdr[@]}" -X DELETE "$API/repos/$REPO/releases/$ID/assets/$aid" >/dev/null; fi
   if [ "$TARGET" = forgejo ]; then
     curl -sS --fail-with-body "${hdr[@]}" -F "attachment=@$f" "$UPLOAD/repos/$REPO/releases/$ID/assets?name=$name" >/dev/null

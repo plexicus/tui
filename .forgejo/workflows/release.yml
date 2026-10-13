@@ -22,7 +22,7 @@ jobs:
       - name: Tag must match package.json
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          want="v$(jq -r .version package.json)"
+          want="v$(bun -e 'console.log(require("./package.json").version)')"
           if [ "$GITHUB_REF_NAME" != "$want" ]; then
             echo "tag $GITHUB_REF_NAME does not match package.json version ($want)"; exit 1
           fi
