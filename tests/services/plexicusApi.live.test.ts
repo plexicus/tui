@@ -53,7 +53,7 @@ describe('PlexicusApi (live fetch path)', () => {
       mockFetchOnce(new Response(JSON.stringify({ items: [], total: 0 }), { status: 200 }))
       await api.getFindings({ statuses: ['open', 'mitigated'] })
       const url = new URL(calls[0]!.url)
-      expect(url.searchParams.get('filters[status]')).toBe('pending_input,completed,pr_submitted,solved')
+      expect(url.searchParams.get('filters[status]')).toBe('pending_input,failed,completed,pr_submitted,solved')
     })
 
     it('preserves CVSS decimal precision instead of flooring', async () => {
