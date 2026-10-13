@@ -8,6 +8,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![CI](https://github.com/plexicus/tui/actions/workflows/ci.yml/badge.svg)](https://github.com/plexicus/tui/actions/workflows/ci.yml)
 
+> **Source of truth**: development happens on `scm.plexicus.ai/plexicus/tui` (CI + releases there). This GitHub repository is a mirror that also hosts the same release binaries. Open issues and PRs on scm when you have access; GitHub issues remain the public channel.
+
 <p align="center">
   <img src="media/demo.gif" alt="Plexicus TUI demo — browse findings, view detail, remediate" width="780" />
 </p>
@@ -41,7 +43,7 @@
 
 - **Findings panel** — paginated list of security findings sorted by severity, with CVE IDs, repository, and date
 - **Repos panel** — browse connected repositories with scan status and per-severity finding counts
-- **SCM integration** — connect GitHub, GitLab, Bitbucket Cloud, and Gitea directly from the TUI; OAuth providers open your browser automatically with no token copy-pasting
+- **SCM integration** — import repositories from GitHub, GitLab, Bitbucket Cloud, Gitea, Forgejo and Azure DevOps once the provider is connected in the Plexicus web app (Connectors page)
 - **Real-time status modal** — live WebSocket progress bar and log stream while repos are scanned or AI remediations are generated
 - **Filter modal** — interactive multi-dimensional filter: severity, repository, status, type, CVSS range, priority, language, category, CWE IDs, false positives
 - **Remediation workflow** — request AI-generated remediations, review diffs, and open pull requests from the TUI
@@ -144,7 +146,7 @@ plexicus config set wsUrl     ws://192.168.1.144:8085     # WebSocket (real-time
 
 The default view. Shows all findings for your connected repositories, sorted by severity (Critical → High → Medium → Low → Informational).
 
-- **Pagination**: 20 findings per page. Use `]` and `[` to move between pages.
+- **Pagination**: 25 findings per page. Use `]` and `[` to move between pages.
 - **Filter modal**: press `F` to open the interactive filter modal — filter by severity, repository (with fuzzy search), status, type, CVSS range, priority range, language, category, CWE IDs, and false positive inclusion.
 - **REPL filter**: quick filter via `:filter severity:critical,high` or `:filter repo:my-service`.
 - **Jump to CVE**: launch with `plexicus --cve CVE-2024-1234` to open the TUI with that finding pre-selected.
@@ -159,10 +161,8 @@ Press `a` to connect a new SCM account and import repositories.
 
 Press `a` in the Repos panel to open the SCM connect flow:
 
-1. **Pick a provider** — GitHub, GitLab, Bitbucket Cloud, or Gitea
-2. **Authorize**
-   - *GitHub / GitLab / Bitbucket*: your browser opens automatically to the OAuth page. Complete authorization there; the TUI polls in the background until your account is linked (no token copy-pasting).
-   - *Gitea*: enter your Gitea server URL and access token directly in the terminal.
+1. **Pick a provider** — GitHub, GitLab, Bitbucket Cloud, Gitea, Forgejo or Azure DevOps. Only providers already connected to your account are selectable; for the others the TUI shows the web app's Connectors page (`<webUrl>/connector`), where the connection is made.
+2. **Load repositories** — the TUI lists what the connected account can access.
 3. **Pick repositories** — fuzzy-search your repos, toggle selections with `Space`, confirm with `Enter`
 4. **Import** — selected repositories are added to Plexicus and will appear in the list
 
@@ -294,7 +294,7 @@ Available filters:
 | Severity | Multi-select | critical, high, medium, low, informational |
 | Repository | Fuzzy multi-select | Type to search, `j`/`k` to navigate, `Space` to select |
 | Status | Multi-select | open, mitigated, enriched |
-| Type | Multi-select | SAST, SCA, DAST |
+| Type | Multi-select | SAST, SCA, Secrets, PII, Access Control, License, Configuration, IaC, API, Cryptography, Malicious Artifact |
 | CVSS score | Min / max range | 0.0–10.0 |
 | Priority | Min / max range | 0–100 |
 | Language | Text | e.g. `python` |

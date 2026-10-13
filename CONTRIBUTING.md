@@ -20,7 +20,7 @@ Thank you for your interest in contributing. This guide covers everything you ne
 **Prerequisites**: [Bun](https://bun.sh) ≥ 1.1
 
 ```bash
-git clone https://github.com/plexicus/tui
+git clone https://scm.plexicus.ai/plexicus/tui.git   # origin; github.com/plexicus/tui is a mirror
 cd tui
 bun install
 ```
@@ -46,8 +46,8 @@ Other subcommands:
 ```bash
 bun run src/main.tsx login
 bun run src/main.tsx repos
-bun run src/main.tsx config set llm.provider claude
-bun run src/main.tsx config set llm.api_key <key>
+bun run src/main.tsx config set serverUrl https://api.staging.plexicus.ai
+bun run src/main.tsx config set webUrl https://staging.plexicus.ai
 ```
 
 Build a standalone binary:
@@ -68,8 +68,8 @@ bun build src/main.tsx --outfile dist/plexicus --target bun
 src/main.tsx          CLI entrypoint (Commander subcommands)
 src/state/            useReducer + React Context (AppState)
 src/components/       Ink/React TUI components
-src/hooks/            Reusable React hooks (keymap, findings, LLM stream)
-src/services/         API client, config, LLM routing
+src/hooks/            Reusable React hooks (keymap, findings, remediation, WebSocket)
+src/services/         API client, config, WebSocket, auth
 src/commands/         Lazily-loaded REPL command implementations
 src/utils/            Pure helpers (severity, diff, paths)
 ```
@@ -153,9 +153,9 @@ Releases are fully automated via GitHub Actions ([`.github/workflows/release.yml
    git push origin v0.2.0
    ```
 
-3. The `Release` workflow runs typecheck and tests, builds standalone binaries for macOS (arm64, x64) and Linux (x64) with `bun build --compile`, generates `SHA256SUMS`, and publishes a GitHub release with auto-generated notes.
+3. The `Release` workflow ([`.forgejo/workflows/release.yml`](.forgejo/workflows/release.yml), runs on scm.plexicus.ai) runs typecheck and tests, builds standalone binaries for macOS (arm64, x64) and Linux (x64) with `bun build --compile`, generates `SHA256SUMS`, publishes a Forgejo release, and, when the `GH_RELEASE_TOKEN` repo secret is set, uploads the same assets to the GitHub release page (`scripts/publish-release.sh`). `workflow_dispatch` runs everything except the publish steps.
 
-The tag must match the `package.json` version (`v` + semver). CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) also smoke-tests the compiled binary on every PR so release builds don't break silently.
+The tag must match the `package.json` version (`v` + semver). CI ([`.forgejo/workflows/ci.yml`](.forgejo/workflows/ci.yml)) also smoke-tests the compiled binary on every PR so release builds don't break silently. The `.github/workflows` files only re-check the mirror; the GitHub release workflow is manual-only.
 
 ---
 
