@@ -19,6 +19,7 @@ export function LoginForm({ prefilledToken, onDone }: LoginFormProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [otp, setOtp] = useState('')
+  const [pendingToken, setPendingToken] = useState<string | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
   const [registerUrl, setRegisterUrl] = useState<string | null>(null)
 
@@ -83,6 +84,7 @@ export function LoginForm({ prefilledToken, onDone }: LoginFormProps) {
       const response = await api.login(email, value.trim())
 
       if (response.kind === '2fa') {
+        setPendingToken(response.pendingToken)
         setStep('otp')
         return
       }
@@ -107,7 +109,7 @@ export function LoginForm({ prefilledToken, onDone }: LoginFormProps) {
     try {
       const config = await loadConfig()
       const api = new PlexicusApi({ baseUrl: config.serverUrl })
-      const accessToken = await api.verify2FA(email, value.trim())
+      const accessToken = await api.verify2FA(email, value.trim(), pendingToken)
       const sessionUser = await new PlexicusApi({ baseUrl: config.serverUrl, token: accessToken }).getSession()
       await saveConfig({ ...config, token: accessToken })
       dispatch({ type: 'auth/set', payload: { user: sessionUser, token: accessToken } })
@@ -117,7 +119,7 @@ export function LoginForm({ prefilledToken, onDone }: LoginFormProps) {
       setError(friendlyError(err, '2FA verification failed'))
       setStep('otp')
     }
-  }, [email, dispatch])
+  }, [email, pendingToken, dispatch])
 
   if (step === 'done') return null
 

@@ -136,7 +136,7 @@ export function SCMConnectFlow({ onClose }: { onClose: () => void }) {
   const selectedProvider = PROVIDERS[cursor]
   const selectedConnected = selectedProvider ? !!validity[selectedProvider.id] : false
   const configureUrl = webUrl
-    ? `${webUrl}/manage-integrations`
+    ? `${webUrl}/connector`
     : 'the Plexicus web app → Integrations'
 
   useInput((input, key) => {

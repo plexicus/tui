@@ -3,11 +3,12 @@ import { Box, Text, useInput } from 'ink'
 import { useAppState } from '../state/AppState.js'
 import { accent } from '../utils/theme.js'
 import type { FindingSeverity, FindingStatus, FindingType } from '../types.js'
+import { FINDING_TYPES } from '../utils/findingTypes.js'
 import type { FindingsFilter } from '../state/actions.js'
 
 const SEVERITIES: FindingSeverity[] = ['critical', 'high', 'medium', 'low', 'informational']
 const STATUSES: FindingStatus[] = ['open', 'enriched', 'ready', 'mitigated']
-const TYPES: FindingType[] = ['SAST', 'SCA', 'DAST']
+const TYPES: FindingType[] = [...FINDING_TYPES]
 
 // Section indices
 const S_SORT = 0
@@ -475,7 +476,7 @@ export function FilterModal() {
       {/* Type */}
       <Box marginTop={1} flexDirection="column">
         {sectionLabel(S_TYPE, 'Type')}
-        <Box>
+        <Box flexWrap="wrap">
           {TYPES.map((tp, i) => (
             <Checkbox
               key={tp}
