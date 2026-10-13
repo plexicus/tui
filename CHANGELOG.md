@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Findings/repositories pagination: the cursor lost its base64 padding, so every page after the first returned HTTP 400
+- Two-factor login: send the `pending_token` issued by `POST /sessions`; the TOTP secret in the login response is no longer required or read
+- Live status modal: authenticate the WebSocket with the `plexicus.access.jwt` subprotocol (the backend rejects tokens in the query string), stop reconnecting on close code 1008, `ws://` for `http://` servers, nested `data{}` frame fields, `scan-progress` / `scan-run-finalized` frames
+- SCM connect hint points to `/connector`; finding-type filter lists the platform types (legacy DAST removed)
+
+### Added
+
+- Forgejo and Azure DevOps in the SCM connect flow; per-forge "view source" links
+- Forgejo Actions CI and tag release pipeline (scm.plexicus.ai is the origin; GitHub is a mirror and release host)
+
 ### Added
 
 **Browser-based login (web-redirect flow)**
