@@ -1,0 +1,30 @@
+# CI on scm.plexicus.ai (Forgejo Actions). Origin of this repo is scm; github.com/plexicus/tui is a
+# push mirror, so .github/workflows/ci.yml only re-validates what already passed here.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: [docker, ubuntu-latest, light]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: https://github.com/oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - run: bun install --frozen-lockfile
+      - name: Typecheck
+        run: bun run typecheck
+      - name: Unit tests
+        run: bun test
+      - name: Smoke-test compiled binary
+        run: |
+          bun build src/main.tsx --compile --target=bun-linux-x64 --outfile dist/plexicus
+          ./dist/plexicus --version
+      - name: Release scripts parse
+        run: |
+          bash -n scripts/build-release.sh
+          bash -n scripts/publish-release.sh
