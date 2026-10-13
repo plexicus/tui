@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - Unreleased
+
+### Security
+
+- Login no longer uses keys or passwords. `--token` (root command and `login`), `--headless`, the email/password form and the silent fall back to a password prompt are removed.
+- `plexicus login` runs a loopback + PKCE flow (`127.0.0.1:9100-9199`, S256 verifier, `state` checked in constant time, only `GET /callback`, single use, 120 s timeout); `plexicus login --device` runs the RFC 8628 device flow and is selected automatically when no browser can be opened.
+- Tokens are stored in the OS keychain (macOS Keychain, Linux libsecret, Windows Credential Manager) with a `~/.config/plexicus/credentials.json` (mode 0600) fallback and a visible warning. A `token` in `config.json` is migrated on first run and removed; the config can no longer hold a token.
+- `plexicus logout` revokes the token on the server (`DELETE /users/me/api-tokens/self`), then clears the keychain item and the file fallback; a failing server call is reported and local credentials are still cleared.
+- `PLEXICUS_TOKEN` is honoured for non-interactive use only: a warning on a TTY, never written to disk, never printed.
+- Every request carries `X-Plexicus-Client: tui/<version>`; HTTP 410/426 show an "upgrade required" message, `invalid_grant` asks to start the login again.
+- Tokens, one-time codes and secret fields are redacted from error messages and `PLEXICUS_DEBUG=1` output.
+
+### Added
+
+- Remaining AI credits and Pentest Units in the header (`GET /credits/summary`), `plexicus credits` and `:credits`.
+- Read-only AI pentest list/status/severity counts (`GET /pentests`), `plexicus pentests` and `:pentests`.
+- `plexicus support`: in-app support ticket (`POST /support/tickets`, `source: "tui"`) with a confirmation prompt.
+- Credits, pentests and support are hidden when the server answers 403/404, so the TUI keeps working against an older platform.
+
+### Changed
+
+- Support moves to the in-app ticket; GitHub is a read-only mirror and the issue links are gone from the docs.
+- Requires a platform with client login v1 (`/auth/cli/authorize`, `/auth/cli/token`, `/oauth/*`); older servers cannot be logged in to from this version (use `PLEXICUS_TOKEN` with an API token, or 0.1.x there).
+- The Windows credential adapter has only been exercised with a mocked shell so far.
+
+### Removed
+
+- `--token`, `--headless`, the email/password and 2FA login form, the `prefilledToken` UI and the `webRedirect` token-in-URL flow.
+
 ## [Unreleased]
 
 ### Fixed
