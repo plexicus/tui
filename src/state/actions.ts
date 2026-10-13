@@ -14,7 +14,7 @@ export interface FindingsFilter {
   languages?: string[]
   categories?: string[]
   is_false_positive?: boolean
-  finding_type?: 'app' | 'scm' | 'cloud' | 'registry'
+  finding_type?: 'app' | 'scm' // cloud/registry finding kinds are discontinued
   sort_by?: 'priority' | 'severity' | 'cvss' | 'date' | 'epss'
   sort_dir?: 'desc' | 'asc'
 }

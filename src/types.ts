@@ -104,6 +104,7 @@ export interface ScmRepo {
   html_url?: string
   clone_url?: string
   private?: boolean
+  default_branch?: string
 }
 
 export interface StatusJob {
