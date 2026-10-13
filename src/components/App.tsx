@@ -6,6 +6,8 @@ import { KeybindingsHelp } from './design-system/KeybindingsHelp.js'
 import { FindingsPanel } from './FindingsPanel.js'
 import { ReposPanel } from './ReposPanel.js'
 import { FindingDetailScreen } from './FindingDetailScreen.js'
+import { PentestsPanel } from './PentestsPanel.js'
+import { useClientContract } from '../hooks/useClientContract.js'
 import { FilterModal } from './FilterModal.js'
 import { StatusModal } from './StatusModal.js'
 import { FirstRunWizard } from './FirstRunWizard.js'
@@ -98,6 +100,7 @@ function AuthGate({
 function AppShell(props: AppProps) {
   const { state, dispatch } = useAppState()
   useWebSocket(props.config ?? { serverUrl: 'https://api.app.plexicus.ai', theme: 'plexicus' })
+  useClientContract()
   const { exit } = useApp()
   const [replInput, setReplInput] = useState('')
   const [replOutput, setReplOutput] = useState<string | null>(null)
@@ -121,7 +124,7 @@ function AppShell(props: AppProps) {
   }, [state.notification])
 
   const dropdownItems = (state.inputMode === 'repl' && !state.fuzzyOpen && !replInput.includes(' '))
-    ? filterCommands(replInput)
+    ? filterCommands(replInput, { pentests: state.pentestsAvailable, credits: state.creditsLine !== null })
     : []
   const dropdownVisible = dropdownItems.length > 0
 
@@ -181,7 +184,7 @@ function AppShell(props: AppProps) {
         return
       }
       if (key.upArrow) {
-        const items = filterCommands(replInputRef.current)
+        const items = filterCommands(replInputRef.current, { pentests: stateRef.current.pentestsAvailable, credits: stateRef.current.creditsLine !== null })
         if (!replInputRef.current.includes(' ') && items.length > 0) {
           setReplDropdownIndex(prev => (prev <= 0 ? items.length - 1 : prev - 1))
         } else {
@@ -195,7 +198,7 @@ function AppShell(props: AppProps) {
         return
       }
       if (key.downArrow) {
-        const items = filterCommands(replInputRef.current)
+        const items = filterCommands(replInputRef.current, { pentests: stateRef.current.pentestsAvailable, credits: stateRef.current.creditsLine !== null })
         if (!replInputRef.current.includes(' ') && items.length > 0) {
           setReplDropdownIndex(prev => (prev >= items.length - 1 ? 0 : prev + 1))
         } else {
@@ -210,7 +213,7 @@ function AppShell(props: AppProps) {
         return
       }
       if (key.tab) {
-        const items = filterCommands(replInputRef.current)
+        const items = filterCommands(replInputRef.current, { pentests: stateRef.current.pentestsAvailable, credits: stateRef.current.creditsLine !== null })
         if (!replInputRef.current.includes(' ') && items.length > 0) {
           const idx = replDropdownIndexRef.current
           const selected = items[Math.min(idx, items.length - 1)]
@@ -287,6 +290,22 @@ function AppShell(props: AppProps) {
           return
         }
 
+        if (cmdName === 'pentests') {
+          if (stateRef.current.pentestsAvailable) {
+            dispatch({ type: 'nav/pushScreen', payload: 'pentests' })
+          } else {
+            setReplOutput('Pentests are not available on this server for your account.')
+          }
+          dispatch({ type: 'ui/setInputMode', payload: 'navigation' })
+          return
+        }
+
+        if (cmdName === 'credits') {
+          setReplOutput(stateRef.current.creditsLine ?? 'Credits are not available on this server.')
+          dispatch({ type: 'ui/setInputMode', payload: 'navigation' })
+          return
+        }
+
         if (cmdName === 'filter') {
           dispatch({ type: 'filter/open' })
           return
@@ -349,11 +368,11 @@ function AppShell(props: AppProps) {
       {/* Breadcrumb header */}
       <Box borderStyle="bold" borderColor={ac} paddingX={1}>
         <Text color={ac} bold>Plexicus</Text>
-        {state.screen !== 'repos' && (
+        {state.screen !== 'repos' && state.screen !== 'pentests' && (
           <>
             <Text dimColor> › </Text>
             <Text color={state.screen === 'findings' ? ac : undefined} bold={state.screen === 'findings'}>
-              {selectedRepo ? selectedRepo.nickname : 'All Repos'}
+              {selectedRepo ? selectedRepo.nickname : state.findingsFilter.finding_type === 'pentest' ? 'Pentest findings' : 'All Repos'}
             </Text>
           </>
         )}
@@ -369,7 +388,19 @@ function AppShell(props: AppProps) {
         {state.findingsTotal > 0 && state.screen === 'findings' && (
           <Text dimColor>  {state.findingsTotal} findings · pg {state.findingsPage + 1}/{state.findingsPageCount}</Text>
         )}
+        {state.screen === 'pentests' && (
+          <>
+            <Text dimColor> › </Text>
+            <Text color={ac} bold>Pentests</Text>
+          </>
+        )}
         {state.error && <Text color="red">  ✗ {state.error}</Text>}
+        {state.creditsLine && (
+          <>
+            <Box flexGrow={1} />
+            <Text dimColor>{state.creditsLine}</Text>
+          </>
+        )}
       </Box>
 
       {/* Main content: current screen (or modal overlay) */}
@@ -380,6 +411,7 @@ function AppShell(props: AppProps) {
               {state.screen === 'repos' && <ReposPanel />}
               {state.screen === 'findings' && <FindingsPanel repo={props.repo} cve={props.cve} />}
               {state.screen === 'detail' && <FindingDetailScreen />}
+              {state.screen === 'pentests' && <PentestsPanel />}
             </>
         }
       </Box>

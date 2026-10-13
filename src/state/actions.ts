@@ -14,7 +14,7 @@ export interface FindingsFilter {
   languages?: string[]
   categories?: string[]
   is_false_positive?: boolean
-  finding_type?: 'app' | 'scm' // cloud/registry finding kinds are discontinued
+  finding_type?: 'app' | 'scm' | 'pentest' // cloud/registry finding kinds are discontinued
   sort_by?: 'priority' | 'severity' | 'cvss' | 'date' | 'epss'
   sort_dir?: 'desc' | 'asc'
 }
@@ -50,3 +50,5 @@ export type Action =
   | { type: 'nav/pushScreen'; payload: Screen }
   | { type: 'nav/popScreen' }
   | { type: 'repo/select'; payload: string | null }
+  | { type: 'contract/credits'; payload: string | null }
+  | { type: 'contract/pentestsAvailable'; payload: boolean }
