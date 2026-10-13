@@ -16,7 +16,7 @@ case "$TARGET" in
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
 esac
 if [ -z "$TOKEN" ]; then
-  if [ "$TARGET" = github ]; then echo "GITHUB_RELEASE_TOKEN not set: skipping the GitHub release"; exit 0; fi
+  if [ "$TARGET" = github ]; then echo "GITHUB_RELEASE_TOKEN (repo secret GH_RELEASE_TOKEN) not set: skipping the GitHub release"; exit 0; fi
   echo "FORGEJO_TOKEN not set" >&2; exit 1
 fi
 FILES=("$DIST"/plexicus-* "$DIST"/SHA256SUMS)

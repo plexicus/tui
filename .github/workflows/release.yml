@@ -1,8 +1,9 @@
 name: Release
 
+# Origin is scm.plexicus.ai: its .forgejo/workflows/release.yml builds the binaries and pushes the
+# GitHub release. This workflow is the manual fallback only (a tag mirrored here must not race it).
 on:
-  push:
-    tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write

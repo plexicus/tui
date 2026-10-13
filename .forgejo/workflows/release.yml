@@ -1,5 +1,5 @@
 # Tag-triggered release on scm.plexicus.ai: build the single-file binaries (macOS arm64/x64,
-# Linux x64), publish them as a Forgejo release, then (when the GITHUB_RELEASE_TOKEN secret is set)
+# Linux x64), publish them as a Forgejo release, then (when the GH_RELEASE_TOKEN repo secret is set (Forgejo rejects secret names starting with GITHUB_))
 # push the same artifacts to the GitHub mirror's release page.
 # workflow_dispatch = dry run: builds and checksums, publishes nothing.
 name: Release
@@ -39,5 +39,5 @@ jobs:
       - name: Publish GitHub release (mirror)
         if: startsWith(github.ref, 'refs/tags/v')
         env:
-          GITHUB_RELEASE_TOKEN: ${{ secrets.GITHUB_RELEASE_TOKEN }}
+          GITHUB_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
         run: scripts/publish-release.sh github "$GITHUB_REF_NAME" dist
