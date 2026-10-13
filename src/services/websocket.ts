@@ -18,6 +18,16 @@ interface WsMessage {
 
 type WsHandler = (msg: WsMessage) => void
 
+// The backend (fastapi/routes/socket.py) closes any connection that puts the token in the query
+// string and only accepts the JWT as the 2nd WebSocket subprotocol next to this marker, the same
+// way the web app connects (frontend/composables/useWebsocketConnection.ts).
+export const WS_ACCESS_SUBPROTOCOL = 'plexicus.access.jwt'
+const WS_POLICY_VIOLATION = 1008 // invalid/expired token or wrong client: retrying cannot help
+
+export function buildWsUrl(wsUrl: string, clientId: string): string {
+  return `${wsUrl.replace(/\/$/, '')}/ws/${encodeURIComponent(clientId)}`
+}
+
 class PlexicusWebSocket {
   private ws: WebSocket | null = null
   private handlers = new Map<string, Set<WsHandler>>()
@@ -42,11 +52,7 @@ class PlexicusWebSocket {
   private _connect(): void {
     if (!this.shouldReconnect) return
     try {
-      // Token must go in the query string: the backend's WS route (fastapi/routes/socket.py)
-      // declares `token: str = Query(...)` and calls decode_and_validate_scopes directly —
-      // it never reads websocket.headers, so a header-based alternative isn't available server-side.
-      const url = `${this.wsUrl}/ws/${this.clientId}?token=${this.token}`
-      this.ws = new WebSocket(url)
+      this.ws = new WebSocket(buildWsUrl(this.wsUrl, this.clientId), [WS_ACCESS_SUBPROTOCOL, this.token])
 
       this.ws.onopen = () => {
         this.reconnectDelay = 1000
@@ -64,8 +70,9 @@ class PlexicusWebSocket {
         }
       }
 
-      this.ws.onclose = () => {
+      this.ws.onclose = (event) => {
         this.onConnectChange?.(false)
+        if (event.code === WS_POLICY_VIOLATION) this.shouldReconnect = false
         if (!this.shouldReconnect) return
         this.reconnectTimer = setTimeout(() => {
           this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000)
