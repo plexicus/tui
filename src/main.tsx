@@ -12,7 +12,7 @@ const { version } = await import('../package.json', { with: { type: 'json' } })
 
 program
   .name('plexicus')
-  .description('Plexicus ASPM TUI — security posture at your fingertips')
+  .description('Plexicus AppSec TUI — security posture at your fingertips')
   .version(version)
   .option('--repo <name>', 'filter findings to a specific repository')
   .option('--cve <id>', 'jump directly to a finding by CVE ID')
