@@ -16,7 +16,7 @@
 
 <sub>↑ Recorded with the TUI in mock mode (<code>MOCK_PLEXICUS=1</code>). Replay it locally with <code>asciinema play media/demo.cast</code>.</sub>
 
-**plexicus** is a terminal UI for [Plexicus ASPM](https://plexicus.ai) — browse security findings, triage vulnerabilities, trigger AI-powered remediations, and open pull requests, all without leaving your terminal.
+**plexicus** is a terminal UI for [Plexicus AppSec](https://plexicus.ai) — browse security findings, triage vulnerabilities, trigger AI-powered remediations, and open pull requests, all without leaving your terminal.
 
 ## Table of Contents
 

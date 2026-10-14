@@ -1,7 +1,7 @@
 {
   "name": "plexicus",
   "version": "0.1.1",
-  "description": "Plexicus ASPM TUI — security posture at your fingertips",
+  "description": "Plexicus AppSec TUI — security posture at your fingertips",
   "type": "module",
   "bin": {
     "plexicus": "./src/main.tsx"
