@@ -1,19 +1,4 @@
-import { randomUUID } from 'node:crypto'
-
-export interface WebRedirectResult {
-  token: string
-  email: string
-}
-
-export interface WebRedirectOptions {
-  timeoutMs?: number
-  signal?: AbortSignal
-}
-
-const PORT_MIN = 9100
-const PORT_MAX = 9199
-
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
@@ -22,7 +7,7 @@ const LOGO_DATA_URI = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy5
 
 // Styled after scm.plexicus.ai (theme-plexicus): white navbar, #8220FF primary,
 // square corners, light body
-function authPage(opts: { ok: boolean; title: string; message: string }): string {
+export function authPage(opts: { ok: boolean; title: string; message: string }): string {
   const icon = opts.ok
     ? '<div class="badge ok">&#10003;</div>'
     : '<div class="badge err">&#10005;</div>'
@@ -51,109 +36,4 @@ function authPage(opts: { ok: boolean; title: string; message: string }): string
   <p>${opts.message}</p>
   <p>You can close this tab and return to your terminal.</p>
   </div></div></body></html>`
-}
-
-export async function loginViaWebRedirect(
-  webUrl: string,
-  opts: WebRedirectOptions = {},
-): Promise<WebRedirectResult> {
-  const timeoutMs = opts.timeoutMs ?? 120_000
-  const nonce = randomUUID()
-
-  let resolveResult!: (v: WebRedirectResult) => void
-  let rejectResult!: (e: Error) => void
-  const resultPromise = new Promise<WebRedirectResult>((resolve, reject) => {
-    resolveResult = resolve
-    rejectResult = reject
-  })
-
-  // Bind local server BEFORE opening browser (security: server must be ready first)
-  let server: ReturnType<typeof Bun.serve> | null = null
-  let port = 0
-
-  let handled = false
-
-  for (let p = PORT_MIN; p <= PORT_MAX; p++) {
-    try {
-      server = Bun.serve({
-        port: p,
-        hostname: '127.0.0.1',
-        fetch(req) {
-          const url = new URL(req.url)
-          const token = url.searchParams.get('token')
-          const email = url.searchParams.get('email')
-          const echoState = url.searchParams.get('state')
-
-          const htmlHeaders = { 'Content-Type': 'text/html; charset=utf-8' }
-
-          if (!token || !email || !echoState) {
-            return new Response(
-              authPage({ ok: false, title: 'Authentication failed', message: 'The redirect from the web app was missing required parameters. Run <code>plexicus login</code> again.' }),
-              { status: 400, headers: htmlHeaders },
-            )
-          }
-          // Single-use: the state nonce briefly appears in this process's argv (passed to
-          // open/xdg-open below), so a co-resident process on a shared host could in theory
-          // race to replay it — reject anything past the first valid callback.
-          if (echoState !== nonce || handled) {
-            return new Response(
-              authPage({ ok: false, title: 'Authentication failed', message: 'Security check failed (state mismatch). Run <code>plexicus login</code> again.' }),
-              { status: 400, headers: htmlHeaders },
-            )
-          }
-
-          handled = true
-          queueMicrotask(() => resolveResult({ token, email }))
-          return new Response(
-            authPage({ ok: true, title: "You're authenticated", message: `Signed in as <strong>${escapeHtml(email)}</strong>.` }),
-            { headers: htmlHeaders },
-          )
-        },
-      })
-      port = p
-      break
-    } catch {
-      // EADDRINUSE — try next port
-    }
-  }
-
-  if (!server) {
-    throw new Error(`No free port available in range [${PORT_MIN}, ${PORT_MAX}]`)
-  }
-
-  // Open browser after server is bound
-  const target = `${webUrl}/auth/cli?port=${port}&state=${encodeURIComponent(nonce)}`
-  try {
-    if (process.platform === 'darwin') {
-      await Bun.$`open ${target}`.quiet()
-    } else if (process.platform === 'linux') {
-      await Bun.$`xdg-open ${target}`.quiet()
-    } else {
-      console.log(`Open this URL in your browser:\n  ${target}`)
-    }
-  } catch {
-    console.log(`Open this URL in your browser:\n  ${target}`)
-  }
-
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    const t = setTimeout(
-      () => reject(new Error(`Login timed out after ${Math.round(timeoutMs / 1000)}s — run \`plexicus login --headless\` if you have no browser`)),
-      timeoutMs,
-    )
-    opts.signal?.addEventListener('abort', () => {
-      clearTimeout(t)
-      reject(new Error('Login aborted'))
-    })
-  })
-
-  try {
-    return await Promise.race([resultPromise, timeoutPromise])
-  } finally {
-    // Graceful stop first: the success promise resolves while the browser's
-    // response is still in flight — stop(true) here would reset the socket
-    // and the user would never see the confirmation page.
-    server.stop()
-    await Bun.sleep(300)
-    server.stop(true)
-  }
 }

@@ -8,13 +8,14 @@ import { ReposPanel } from './ReposPanel.js'
 import { FindingDetailScreen } from './FindingDetailScreen.js'
 import { FilterModal } from './FilterModal.js'
 import { StatusModal } from './StatusModal.js'
-import { LoginForm } from './LoginForm.js'
 import { FirstRunWizard } from './FirstRunWizard.js'
 import { findCommand } from '../commands.js'
 import { useWebSocket } from '../hooks/useWebSocket.js'
 import { filterCommands } from '../utils/replCommands.js'
 import { friendlyError } from '../utils/errors.js'
 import { createApiClient } from '../services/apiClient.js'
+import { PlexicusApi } from '../services/plexicusApi.js'
+import { PlexicusAuthError } from '../utils/errors.js'
 import type { Config } from '../services/config.js'
 
 interface AppProps {
@@ -24,6 +25,8 @@ interface AppProps {
   config?: Config
 }
 
+// The token comes from the credential store (or PLEXICUS_TOKEN) resolved in main.tsx; the TUI never
+// asks for a password. A rejected token ends the session with a pointer to `plexicus login`.
 function AuthGate({
   token,
   config,
@@ -33,17 +36,60 @@ function AuthGate({
   config?: Config
   children: React.ReactNode
 }) {
-  const { state } = useAppState()
+  const { state, dispatch } = useAppState()
+  const { exit } = useApp()
   const [needsFirstRun, setNeedsFirstRun] = useState(
     !config?.serverUrl || config.serverUrl === '',
   )
+  const [failure, setFailure] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (needsFirstRun || state.isAuthenticated) return
+    if (!token) {
+      setFailure('Not logged in. Run `plexicus login`.')
+      return
+    }
+    let cancelled = false
+    new PlexicusApi({ baseUrl: config?.serverUrl ?? 'https://api.app.plexicus.ai', token })
+      .getSession()
+      .then(user => {
+        if (!cancelled) dispatch({ type: 'auth/set', payload: { user, token } })
+      })
+      .catch(err => {
+        if (cancelled) return
+        setFailure(
+          err instanceof PlexicusAuthError
+            ? 'Your token is invalid, expired or was revoked. Run `plexicus login`.'
+            : friendlyError(err, 'Could not verify your session'),
+        )
+      })
+    return () => { cancelled = true }
+  }, [needsFirstRun, state.isAuthenticated, token])
+
+  useEffect(() => {
+    if (!failure) return
+    const t = setTimeout(() => exit(), 100)
+    return () => clearTimeout(t)
+  }, [failure])
 
   if (needsFirstRun) {
     return <FirstRunWizard onComplete={() => setNeedsFirstRun(false)} />
   }
 
+  if (failure) {
+    return (
+      <Box padding={1}>
+        <Text color="red">{failure}</Text>
+      </Box>
+    )
+  }
+
   if (!state.isAuthenticated) {
-    return <LoginForm prefilledToken={token ?? process.env.PLEXICUS_TOKEN} />
+    return (
+      <Box padding={1}>
+        <Text color="yellow">Verifying your session...</Text>
+      </Box>
+    )
   }
 
   return <>{children}</>

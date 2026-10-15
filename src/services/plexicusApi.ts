@@ -4,20 +4,17 @@ import {
   RepositoriesResponseSchema,
   RemediationSchema, RemediationsCollectionSchema,
   ApiTokensListSchema, ApiTokenCreatedSchema,
-  SessionUserSchema, LoginResponseUnion, LoginResponseFlatSchema,
-  Verify2FAResponseSchema,
+  SessionUserSchema,
 } from './apiSchemas.js'
 import type { FindingsFilter } from '../state/actions.js'
 import { PlexicusApiError, PlexicusAuthError } from '../utils/errors.js'
+import { CLIENT_HEADER, clientHeaderValue } from '../utils/clientInfo.js'
+import { upgradeRequired } from './auth/errors.js'
 
 interface ApiConfig {
   baseUrl: string
   token?: string
 }
-
-export type LoginResult =
-  | { kind: 'ok'; access_token: string; token_type: string }
-  | { kind: '2fa'; pendingToken?: string }
 
 interface FindingsResult {
   findings: Finding[]
@@ -205,7 +202,10 @@ export class PlexicusApi {
   }
 
   private headers(): Record<string, string> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      [CLIENT_HEADER]: clientHeaderValue(),
+    }
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`
     return headers
   }
@@ -229,6 +229,8 @@ export class PlexicusApi {
       const msg = err instanceof Error ? err.message : String(err)
       throw new PlexicusApiError(`${msg} (${url})`, 0, path)
     }
+    // 410 (legacy exchange off) and 426 mean this client version is no longer supported.
+    if (res.status === 410 || res.status === 426) throw upgradeRequired()
     if (res.status === 401) {
       const detail = await res.text()
         .then(t => JSON.parse(t).detail as unknown)
@@ -246,24 +248,13 @@ export class PlexicusApi {
     return schema ? schema.parse(unwrapped) : (unwrapped as T)
   }
 
-  async login(email: string, password: string): Promise<LoginResult> {
-    if (MOCK_MODE) {
-      const data = await loadFixture('login')
-      const parsed = LoginResponseFlatSchema.parse(data)
-      return { kind: 'ok', access_token: parsed.access_token, token_type: parsed.token_type }
-    }
-    const raw = await this.fetch<unknown>('POST', '/sessions', { email, password }, undefined, 'raw')
-    const parsed = LoginResponseUnion.parse(raw)
-    if ('requires_2fa' in parsed && parsed.requires_2fa) {
-      return { kind: '2fa', pendingToken: parsed.pending_token }
-    }
-    const flat = parsed as { access_token: string; token_type: string }
-    return { kind: 'ok', access_token: flat.access_token, token_type: flat.token_type }
-  }
-
+  /**
+   * Logout: revokes the calling API token (204). A 401 means it is already invalid. Any other
+   * failure is surfaced so the caller can tell the user to revoke it in Settings -> API tokens.
+   */
   async logout(): Promise<void> {
     if (MOCK_MODE) return
-    await this.fetch<void>('DELETE', '/sessions/self')
+    await this.fetch<void>('DELETE', '/users/me/api-tokens/self', undefined, undefined, 'raw')
   }
 
   async getSession(): Promise<SessionUser> {
@@ -272,24 +263,6 @@ export class PlexicusApi {
       return SessionUserSchema.parse(data)
     }
     return this.fetch<SessionUser>('GET', '/sessions/self', undefined, SessionUserSchema, 'raw')
-  }
-
-  async verify2FA(email: string, otp_code: string, pendingToken?: string): Promise<string> {
-    if (MOCK_MODE) {
-      const data = await loadFixture('login')
-      const parsed = LoginResponseFlatSchema.parse(data)
-      return parsed.access_token
-    }
-    // The backend identifies the pending login by pending_token (from POST /sessions); email is
-    // kept for older backends that still resolve the user by address.
-    const body: Record<string, string> = { otp_code, email }
-    if (pendingToken) body.pending_token = pendingToken
-    const raw = await this.fetch<unknown>('POST', '/sessions/self/2fa-verifications', body, undefined, 'raw')
-    const parsed = Verify2FAResponseSchema.parse(raw)
-    if (!parsed.verify_otp || !parsed.access_token) {
-      throw new PlexicusAuthError()
-    }
-    return parsed.access_token!
   }
 
   async getFindings(

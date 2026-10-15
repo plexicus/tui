@@ -14,11 +14,11 @@ describe('ConfigSchema', () => {
   it('accepts valid config', () => {
     const config = ConfigSchema.parse({
       serverUrl: 'https://custom.example.com',
-      token: 'sk-test',
+      token: 'sk-test', // legacy key: accepted but dropped, tokens never live in the config
       theme: 'light',
     })
     expect(config.serverUrl).toBe('https://custom.example.com')
-    expect(config.token).toBe('sk-test')
+    expect('token' in config).toBe(false)
     expect(config.theme).toBe('light')
   })
 

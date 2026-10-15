@@ -7,7 +7,9 @@ process.env.MOCK_PLEXICUS = '1'
 let api: PlexicusApiType
 
 beforeAll(async () => {
-  const { PlexicusApi } = await import('../../src/services/plexicusApi.js')
+  // Cache-busting query: other test files import this module with MOCK_MODE=false first.
+  // @ts-expect-error — query string is a runtime-only cache-busting trick; tsc can't resolve it
+  const { PlexicusApi } = await import('../../src/services/plexicusApi.js?mock-mode-test')
   api = new PlexicusApi({ baseUrl: 'https://api.app.plexicus.ai' })
 })
 
@@ -48,15 +50,6 @@ describe('PlexicusApi (mock mode)', () => {
   it('createRemediation fires and returns void', async () => {
     const result = await api.createRemediation('f-001')
     expect(result).toBeUndefined()
-  })
-
-  it('login returns LoginResult with kind=ok', async () => {
-    const resp = await api.login('test@example.com', 'password')
-    expect(resp.kind).toBe('ok')
-    if (resp.kind === 'ok') {
-      expect(resp.access_token).toBeDefined()
-      expect(typeof resp.access_token).toBe('string')
-    }
   })
 
   it('getApiTokens returns array', async () => {
