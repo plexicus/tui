@@ -116,7 +116,7 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 ```bash
 # Development (mock API — real API not yet live)
-MOCK_PLEXICUS=1 bun run src/main.tsx --token test
+MOCK_PLEXICUS=1 bun run src/main.tsx
 
 # Subcommands
 bun run src/main.tsx config set serverUrl <url>
@@ -131,12 +131,10 @@ bun build src/main.tsx --outfile dist/plexicus --target bun
 ```
 
 ### Entry point and subcommands (`src/main.tsx`)
-Commander entrypoint with 4 subcommands: default (TUI), `login`, `repos`, `config set`. Each lazily imports its module. Token resolution: `--token` flag → `PLEXICUS_TOKEN` env → `~/.config/plexicus/config.json`.
+Commander entrypoint with subcommands: default (TUI), `login`, `logout`, `repos`, `credits`, `pentests`, `support`, `config set`. Each lazily imports its module. Token resolution (`startSession`): `PLEXICUS_TOKEN` env (non-interactive use only, never stored) → OS keychain / 0600 file fallback (`src/services/auth/credentials.ts`). There is no `--token` and no password login.
 
-### Web-redirect login flow (`src/services/auth/webRedirect.ts`)
-`plexicus login` (no flags) attempts a browser-based auth flow when `webUrl` is configured and `canOpenBrowser()` is true. Flow: bind local `Bun.serve` on `127.0.0.1:9100–9199` → open `{webUrl}/auth/cli?port=PORT&state=NONCE` in browser → frontend page POSTs to `POST /auth/cli/exchange` with the user's web JWT → backend mints a `CLI - YYYY-MM-DD` API token → frontend redirects browser to `http://127.0.0.1:PORT?token=...&email=...&state=NONCE` → TUI verifies state nonce, saves token, exits.
-
-`plexicus login --headless` skips the browser flow and falls back to the `LoginForm` (email/password). Falls back automatically when `SSH_TTY` is set, `DISPLAY`/`WAYLAND_DISPLAY` absent (Linux), or `webUrl` not configured. Use `plexicus config set webUrl https://app.plexicus.ai` to enable it.
+### Login (client contract v1: `docs/AUTH-API-CONTRACT.md` in the runbook repo)
+`plexicus login` = loopback + PKCE (`src/services/auth/loopback.ts`, `pkce.ts`, `login.ts`): bind `127.0.0.1:9100–9199`, open `{webUrl}/auth/cli?client_id=plexicus-tui&port&state&code_challenge&code_challenge_method=S256&device&scope`, accept only `GET /callback` with the right `state` (constant time, single use, 120 s), then `POST /auth/cli/token` with the verifier. `plexicus login --device` (and the automatic fallback when no browser opens) = RFC 8628 (`device.ts`): `POST /oauth/device_authorization`, poll `POST /oauth/token`. Both send `X-Plexicus-Client: tui/<version>`; 410/426 = upgrade required; `invalid_grant` = restart, never retry the code. The token goes to the OS keychain (`keychain.ts`: macOS `security -i`, libsecret `secret-tool`, Windows PasswordVault) with a 0600 `credentials.json` fallback + warning; it never touches `config.json` (a legacy one is migrated by `migrateLegacyToken`). `logout` = `DELETE /users/me/api-tokens/self`, then clear local storage. Never print or log tokens (`src/utils/redact.ts`).
 
 Utilities: `src/utils/canOpenBrowser.ts` (env-var checks), `src/utils/url.ts` (`deriveWebUrl`: strips `api.` subdomain prefix, returns `null` for IP:port — set `webUrl` explicitly for self-hosted).
 
@@ -181,7 +179,7 @@ Known commands: `:filter`, `:scan`, `:theme <plexicus|dark|light>`, `:config set
 `:scan` requires `state.selectedRepoId` to be set (i.e., user must be on findings screen for a specific repo). It calls `api.requestScan(repoId)` and opens `StatusModal`.
 
 ### Component tree (`src/components/`)
-`App.tsx` → `AuthGate` (FirstRunWizard → LoginForm → AppShell). `AppShell`: breadcrumb header, screen router (`ReposPanel | FindingsPanel | FindingDetailScreen`), overlay modals (FilterModal, StatusModal), REPL bar + autocomplete dropdown.
+`App.tsx` → `AuthGate` (FirstRunWizard → session check with the token resolved in `main.tsx` → AppShell). `AppShell`: breadcrumb header, screen router (`ReposPanel | FindingsPanel | FindingDetailScreen`), overlay modals (FilterModal, StatusModal), REPL bar + autocomplete dropdown.
 
 `FuzzyPicker` renders inside `ReposPanel` or `FindingsPanel` when `state.fuzzyOpen && state.screen === 'repos|findings'`.
 
@@ -218,7 +216,7 @@ Set `MOCK_PLEXICUS=1` to load fixture data from `tests/fixtures/plexicus/` inste
 ### Config (`src/services/config.ts`)
 Stored at `~/.config/plexicus/config.json`. Atomic writes: `mkdir(0o700)` → `chmod` → `writeFile(tmp, 0o600)` → `rename` → `chmod`.
 
-Config fields: `serverUrl`, `webUrl` (optional web frontend URL for browser redirects), `wsUrl` (optional WebSocket URL), `token`, `theme`.
+Config fields: `serverUrl`, `webUrl` (optional web frontend URL for browser redirects), `wsUrl` (optional WebSocket URL), `theme`. Tokens are never part of the config.
 
 If `webUrl` is not set, it is derived from `serverUrl` by stripping the `api.` subdomain prefix — works for cloud (`https://api.app.plexicus.ai → https://app.plexicus.ai`) but not for IP:port deployments. Always set `webUrl` explicitly on self-hosted installs.
 

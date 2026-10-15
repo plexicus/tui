@@ -8,7 +8,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![CI](https://github.com/plexicus/tui/actions/workflows/ci.yml/badge.svg)](https://github.com/plexicus/tui/actions/workflows/ci.yml)
 
-> **Source of truth**: development happens on `scm.plexicus.ai/plexicus/tui` (CI + releases there). This GitHub repository is a mirror that also hosts the same release binaries. Open issues and PRs on scm when you have access; GitHub issues remain the public channel.
+> **Source of truth**: development happens on `scm.plexicus.ai/plexicus/tui` (CI + releases there). This GitHub repository is a read-only mirror that also hosts the same release binaries. Support is the in-app ticket (`plexicus support`, or Support in the Plexicus web app), not GitHub issues.
 
 <p align="center">
   <img src="media/demo.gif" alt="Plexicus TUI demo — browse findings, view detail, remediate" width="780" />
@@ -44,6 +44,8 @@
 - **Findings panel** — paginated list of security findings sorted by severity, with CVE IDs, repository, and date
 - **Repos panel** — browse connected repositories with scan status and per-severity finding counts
 - **SCM integration** — import repositories from GitHub, GitLab, Bitbucket Cloud, Gitea, Forgejo and Azure DevOps once the provider is connected in the Plexicus web app (Connectors page)
+- **Credits and pentests** — remaining AI credits and Pentest Units in the header, read-only AI pentest status (`:pentests`), shown only when your server provides them
+- **Secure login** — browser login (PKCE) or device code, token kept in the OS keychain, revoked on logout
 - **Real-time status modal** — live WebSocket progress bar and log stream while repos are scanned or AI remediations are generated
 - **Filter modal** — interactive multi-dimensional filter: severity, repository, status, type, CVSS range, priority, language, category, CWE IDs, false positives
 - **Remediation workflow** — request AI-generated remediations, review diffs, and open pull requests from the TUI
@@ -85,27 +87,40 @@ plexicus --version
 
 > **First launch**: if you have no existing configuration, plexicus will open a setup wizard to collect the server URL before proceeding to login. Enter `https://api.app.plexicus.ai` (the default) or your self-hosted endpoint, then press `Enter`.
 
-**1. Authenticate**
+**1. Log in**
 
 ```bash
 plexicus login
 ```
 
-When `webUrl` is configured (or derived from `serverUrl`), this opens your browser to the Plexicus web app which mints an API token automatically — no copy-pasting. Once authorized, the token is saved and you return to the terminal.
+Your browser opens on the Plexicus web app, you review the request (client, device, access, lifetime) and click Authorize. The TUI receives a one-time code on `127.0.0.1` (PKCE-bound, valid 60 seconds, single use) and exchanges it for a personal API token that is stored in your operating-system keychain. You never type a key or a password into the terminal.
 
-Use `--headless` to skip the browser flow and enter email/password directly:
+On a machine without a browser (SSH, containers), or when the browser cannot be opened, the TUI switches to the device flow by itself; you can also ask for it:
 
 ```bash
-plexicus login --headless
+plexicus login --device
+# Open https://app.plexicus.ai/activate and enter the code:  WDJB-MJHT
 ```
 
-Or pass a token directly:
+Open the printed address on any device, sign in, enter the code and approve. The terminal continues as soon as you do.
+
+Tokens last 90 days by default (1-365 days, chosen on the consent screen). `plexicus logout` revokes the token on the server and removes it from this machine; if the server cannot be reached it still clears the local copy and tells you to revoke the token in the web app under Settings → API tokens.
+
+Where the token is stored:
+
+| OS | Store | Fallback |
+|----|-------|----------|
+| macOS | Keychain (`security`) | `~/.config/plexicus/credentials.json` (mode 0600), with a warning |
+| Linux | Secret Service / libsecret (`secret-tool`) | same file, with a warning |
+| Windows | Credential Manager (PowerShell PasswordVault) | same file, with a warning |
+
+An old `token` in `config.json` is moved into the keychain on first run and removed from the file.
+
+**Non-interactive use (CI, scripts)**: export a personal API token created in the web app (Settings → API tokens) as `PLEXICUS_TOKEN`. It is used as is, never written to disk and never printed; on an interactive terminal the TUI warns that `plexicus login` is the preferred route.
 
 ```bash
-plexicus --token <your-token>
-# or
-export PLEXICUS_TOKEN=<your-token>
-plexicus
+export PLEXICUS_TOKEN=<token from Settings → API tokens>
+plexicus pentests --status completed
 ```
 
 **2. Open the TUI**
@@ -136,7 +151,7 @@ plexicus config set webUrl    http://192.168.1.144:3000   # web frontend (for br
 plexicus config set wsUrl     ws://192.168.1.144:8085     # WebSocket (real-time status)
 ```
 
-`webUrl` is required for browser-based login (`plexicus login` without `--headless`). If it is not set, the TUI attempts to derive it from `serverUrl` by stripping the `api.` subdomain prefix — this works for `https://api.app.plexicus.ai` but not for IP:port addresses. Always set it explicitly for self-hosted installs.
+`webUrl` is required for browser-based login (`plexicus login`; without it the device flow is used). If it is not set, the TUI attempts to derive it from `serverUrl` by stripping the `api.` subdomain prefix — this works for `https://api.app.plexicus.ai` but not for IP:port addresses. Always set it explicitly for self-hosted installs.
 
 ---
 
@@ -166,7 +181,7 @@ Press `a` in the Repos panel to open the SCM connect flow:
 3. **Pick repositories** — fuzzy-search your repos, toggle selections with `Space`, confirm with `Enter`
 4. **Import** — selected repositories are added to Plexicus and will appear in the list
 
-**Headless / SSH sessions**: if the browser cannot be opened, the TUI displays the authorization URL prominently so you can click it in your terminal emulator. The polling flow continues normally once you complete auth on your local machine.
+**Headless / SSH sessions**: SCM providers are connected in the Plexicus web app (Connectors page); the TUI only imports from providers that are already connected.
 
 ### Detail pane
 
@@ -345,14 +360,13 @@ This is equivalent to running `plexicus config set <key> <value>` from your shel
 
 ## Configuration
 
-All configuration is stored in `~/.config/plexicus/config.json`. Modify it with `plexicus config set` or edit the file directly.
+All configuration is stored in `~/.config/plexicus/config.json`. Modify it with `plexicus config set` or edit the file directly. The file never holds a token: credentials live in the OS keychain (see [Quick start](#quick-start)).
 
 | Key (command line / `config set`) | Key (JSON file) | Description | Default |
 |--------------------------|-----------------|-------------|---------|
 | `serverUrl` | `serverUrl` | Plexicus REST API base URL | `https://api.app.plexicus.ai` |
 | `webUrl` | `webUrl` | Web frontend URL — used for browser-based login (`plexicus login`) and OAuth flows | derived from `serverUrl` |
 | `wsUrl` | `wsUrl` | WebSocket URL for real-time status events | derived from `serverUrl` |
-| `token` | `token` | Authentication token | — |
 | `theme` | `theme` | UI colour theme (`plexicus` \| `dark` \| `light`) | `plexicus` |
 
 > **Self-hosted note**: `webUrl` and `wsUrl` must be set explicitly when your instance uses IP:port addresses. See [Self-hosted setup](#self-hosted-setup).
@@ -362,7 +376,6 @@ Example `~/.config/plexicus/config.json`:
 ```json
 {
   "serverUrl": "https://api.app.plexicus.ai",
-  "token": "plx_...",
   "theme": "plexicus"
 }
 ```
@@ -377,7 +390,6 @@ Example `~/.config/plexicus/config.json`:
 plexicus [options]
 
 Options:
-  --token <token>   Authentication token (overrides PLEXICUS_TOKEN env and config)
   --repo <name>     Filter findings to a specific repository on launch
   --cve <id>        Open the TUI with a specific CVE pre-selected (e.g. CVE-2024-1234)
   --version         Print version
@@ -390,9 +402,37 @@ Options:
 plexicus login [options]
 
 Options:
-  --token <token>   Authenticate non-interactively with a token
-  --headless        Skip browser-based login; use email/password form instead
+  --device          Device flow: print a code to enter at the verification URL (SSH, headless)
 ```
+
+Opens your browser (loopback + PKCE) and stores a revocable token in the OS keychain. There is no `--token` and no password prompt.
+
+### `plexicus logout`
+
+Revokes the stored token on the server (`DELETE /users/me/api-tokens/self`) and removes it from the keychain and the file fallback.
+
+### `plexicus credits`
+
+Prints your remaining AI credits and Pentest Units (also shown in the TUI header when the server provides them).
+
+### `plexicus pentests`
+
+Lists your AI pentests with status and severity counts. Read-only: launching, cancelling, logs and reports stay in the web app.
+
+```
+plexicus pentests [--status draft|pending|running|completed|failed|cancelled] [--page <n>]
+```
+
+### `plexicus support`
+
+Files an in-app support ticket (reaches the Plexicus support team; no repository or finding data is attached).
+
+```
+plexicus support [--category question|bug|feature_request|billing|security|other]
+                 [--subject <text>] [--message <text>] [--yes]
+```
+
+Subject up to 200 characters, message up to 5000. You are asked to confirm before anything is sent. Do not paste passwords, tokens or customer data.
 
 ### `plexicus repos`
 
@@ -413,7 +453,8 @@ Examples:
 
 | Variable | Description |
 |----------|-------------|
-| `PLEXICUS_TOKEN` | Authentication token (lower priority than `--token`, higher than config file) |
+| `PLEXICUS_TOKEN` | Personal API token for non-interactive use (CI, scripts). Takes precedence over the stored login, is never written to disk or printed |
+| `PLEXICUS_DEBUG` | Set to `1` for debug output on stderr (tokens and one-time codes are redacted) |
 | `MOCK_PLEXICUS` | Set to `1` to load fixture data instead of making real API calls (for development) |
 
 ---

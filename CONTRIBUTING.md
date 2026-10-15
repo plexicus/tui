@@ -38,7 +38,7 @@ bun run typecheck
 The live Plexicus API is not required for development. Use mock mode to load fixture data from `tests/fixtures/plexicus/`:
 
 ```bash
-MOCK_PLEXICUS=1 bun run src/main.tsx --token test
+MOCK_PLEXICUS=1 bun run src/main.tsx
 ```
 
 Other subcommands:
@@ -83,7 +83,6 @@ All keyboard input is gated by `state.inputMode`:
 | `navigation` | `useKeymap` hook + global handler in `App.tsx` |
 | `repl` | Direct `useInput` char capture in `App.tsx` |
 | `chat` | `TextInput` in `ChatSidebar.tsx` |
-| `login` | `TextInput` in `LoginForm.tsx` |
 
 The REPL bar intentionally bypasses `ink-text-input` and captures characters directly via `useInput` — `ink-text-input` v6 focus proved unreliable in tmux (focus never transferred, causing every `Enter` to fire `onSubmit('')`). The chat sidebar uses `TextInput` safely because its focus is managed independently by the `inputMode` guard and the `helpOpen` prop. Do not use `ink-text-input` for any new REPL-style input; use the same direct-capture pattern.
 
@@ -134,7 +133,7 @@ Before opening a PR, confirm:
 
 - [ ] `bun run typecheck` passes with zero errors
 - [ ] `bun test` passes (add new tests for new behaviour)
-- [ ] The TUI runs in mock mode: `MOCK_PLEXICUS=1 bun run src/main.tsx --token test`
+- [ ] The TUI runs in mock mode: `MOCK_PLEXICUS=1 bun run src/main.tsx`
 - [ ] New keyboard shortcuts are documented in `src/components/design-system/KeybindingsHelp.tsx`
 - [ ] New config keys are documented in this file, in `README.md`, and in `src/services/config.ts`
 - [ ] No hardcoded API URLs or tokens in committed code
@@ -161,7 +160,7 @@ The tag must match the `package.json` version (`v` + semver). CI ([`.forgejo/wor
 
 ## Reporting issues
 
-Open an issue at [github.com/plexicus/tui/issues](https://github.com/plexicus/tui/issues). Include:
+Plexicus customers report problems with the in-app support ticket: `plexicus support` in the terminal, or Support in the Plexicus web app. The GitHub repository is a read-only mirror and is not a support channel. Include:
 
 - plexicus version (`plexicus --version`)
 - OS and terminal emulator
