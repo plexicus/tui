@@ -28,6 +28,10 @@ export interface AppState {
   screen: Screen
   screenStack: Screen[]
   selectedRepoId: string | null
+  /** Header text from GET /credits/summary; null = hidden (endpoint missing, forbidden or inactive). */
+  creditsLine: string | null
+  /** GET /pentests answered: the Pentests view is offered only then. */
+  pentestsAvailable: boolean
 }
 
 const initialState: AppState = {
@@ -56,6 +60,8 @@ const initialState: AppState = {
   screen: 'repos',
   screenStack: ['repos'],
   selectedRepoId: null,
+  creditsLine: null,
+  pentestsAvailable: false,
 }
 
 function reducer(state: AppState, action: Action): AppState {
@@ -166,6 +172,12 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'repo/select':
       return { ...state, selectedRepoId: action.payload }
+
+    case 'contract/credits':
+      return { ...state, creditsLine: action.payload }
+
+    case 'contract/pentestsAvailable':
+      return { ...state, pentestsAvailable: action.payload }
 
     default:
       return state

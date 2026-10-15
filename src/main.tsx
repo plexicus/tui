@@ -107,6 +107,81 @@ program
   })
 
 program
+  .command('credits')
+  .description('Show your remaining AI credits and Pentest Units')
+  .action(async () => {
+    const { config, token } = await startSession()
+    const { apiFor, creditsText } = await import('./commands/clientViews.js')
+    try {
+      console.log(await creditsText(apiFor(config, token)))
+    } catch (err: unknown) {
+      console.error(chalk.red(friendlyError(err, 'Could not read credits')))
+      process.exit(1)
+    }
+  })
+
+program
+  .command('pentests')
+  .description('List your AI pentests and their status (read-only)')
+  .option('--status <status>', 'draft | pending | running | completed | failed | cancelled')
+  .option('--page <n>', 'page number', v => Number.parseInt(v, 10))
+  .action(async (options) => {
+    const { config, token } = await startSession()
+    const { apiFor, pentestsText, PENTEST_STATUSES } = await import('./commands/clientViews.js')
+    if (options.status && !(PENTEST_STATUSES as readonly string[]).includes(options.status)) {
+      console.error(chalk.red(`--status must be one of: ${PENTEST_STATUSES.join(', ')}`))
+      process.exit(1)
+    }
+    try {
+      for (const line of await pentestsText(apiFor(config, token), { status: options.status, page: options.page })) console.log(line)
+    } catch (err: unknown) {
+      console.error(chalk.red(friendlyError(err, 'Could not list pentests')))
+      process.exit(1)
+    }
+  })
+
+program
+  .command('support')
+  .description('File an in-app support ticket (question, bug, feature_request, billing, security, other)')
+  .option('--category <category>', 'question | bug | feature_request | billing | security | other')
+  .option('--subject <text>', 'subject (max 200 characters)')
+  .option('--message <text>', 'message (max 5000 characters)')
+  .option('--yes', 'skip the confirmation prompt (all fields must be given)')
+  .action(async (options) => {
+    const { config, token } = await startSession()
+    const { runSupport } = await import('./commands/support.js')
+    const { createInterface } = await import('node:readline')
+    const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: false })
+    const buffered: string[] = []
+    let waiter: ((v: string | null) => void) | null = null
+    let closed = false
+    rl.on('line', l => (waiter ? ((w) => { waiter = null; w(l) })(waiter) : buffered.push(l)))
+    rl.on('close', () => { closed = true; waiter?.(null) })
+    const ask = (prompt: string) =>
+      new Promise<string | null>(resolve => {
+        if (prompt) process.stdout.write(prompt)
+        if (buffered.length) return resolve(buffered.shift()!)
+        if (closed) return resolve(null)
+        waiter = resolve
+      })
+    try {
+      const out = await runSupport(config, token, options, { ask, print: l => console.log(l) })
+      if (out.sent) {
+        console.log(chalk.green(`✓ Ticket sent${out.ticketId ? ` (reference ${out.ticketId})` : ''}. We reply by email.`))
+      } else {
+        console.error(chalk.yellow(out.reason ?? 'Nothing was sent.'))
+        process.exitCode = 1
+      }
+    } catch (err: unknown) {
+      console.error(chalk.red(friendlyError(err, 'Could not send the ticket')))
+      process.exitCode = 1
+    } finally {
+      rl.close()
+    }
+    process.exit(process.exitCode ?? 0)
+  })
+
+program
   .command('config')
   .description('Manage plexicus configuration')
   .addCommand(

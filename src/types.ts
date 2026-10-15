@@ -42,7 +42,7 @@ export interface Finding {
   policy_name: string | null
 }
 
-export type Screen = 'repos' | 'findings' | 'detail'
+export type Screen = 'repos' | 'findings' | 'detail' | 'pentests'
 
 export interface Repository {
   id: string

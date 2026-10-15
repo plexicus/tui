@@ -10,6 +10,10 @@ import type { FindingsFilter } from '../state/actions.js'
 import { PlexicusApiError, PlexicusAuthError } from '../utils/errors.js'
 import { CLIENT_HEADER, clientHeaderValue } from '../utils/clientInfo.js'
 import { upgradeRequired } from './auth/errors.js'
+import {
+  parseCreditsSummary, parsePentest, parsePentestList,
+  type CreditsSummary, type PentestList, type PentestView, type SupportTicketInput,
+} from './contract.js'
 
 interface ApiConfig {
   baseUrl: string
@@ -486,6 +490,48 @@ export class PlexicusApi {
       },
     }))
     await this.fetch<void>('POST', '/repositories/bulk', { data, source_control: sourceControl }, undefined, 'raw')
+  }
+
+  /** GET /credits/summary (client contract v1): counters only, never tokens/model/provider/cost. */
+  async getCreditsSummary(): Promise<CreditsSummary> {
+    if (MOCK_MODE) {
+      return parseCreditsSummary({
+        active: true, enforced: false, plan: 'scale', period: '2026-10', resets_at: '2026-11-01T00:00:00Z',
+        credits: { used: 300, remaining: 25190, limit: 25500, unlimited: false },
+        pentest_units: { used: 0, remaining: 4, limit: 4, unlimited: false },
+      })
+    }
+    const raw = await this.fetch<unknown>('GET', '/credits/summary', undefined, undefined, 'raw')
+    return parseCreditsSummary(raw)
+  }
+
+  /** GET /pentests (API-token allowlist). Read-only: there is no launch or cancel in the TUI. */
+  async listPentests(opts: { page?: number; pageSize?: number; status?: string } = {}): Promise<PentestList> {
+    if (MOCK_MODE) return parsePentestList({ items: [], total: 0, page: 1, page_size: 10 })
+    const qs = new URLSearchParams({ page: String(opts.page ?? 1), page_size: String(opts.pageSize ?? 25) })
+    if (opts.status) qs.set('status', opts.status)
+    const raw = await this.fetch<unknown>('GET', `/pentests?${qs}`, undefined, undefined, 'raw')
+    return parsePentestList(raw)
+  }
+
+  async getPentest(id: string): Promise<PentestView | null> {
+    if (MOCK_MODE) return null
+    const raw = await this.fetch<unknown>('GET', `/pentests/${encodeURIComponent(id)}`, undefined, undefined, 'raw')
+    return parsePentest(raw)
+  }
+
+  /** POST /support/tickets (docs/SUPPORT-CHANNEL.md). Returns the ticket id. */
+  async createSupportTicket(t: SupportTicketInput): Promise<string | null> {
+    if (MOCK_MODE) return 'mock-ticket'
+    const raw = await this.fetch<unknown>(
+      'POST',
+      '/support/tickets',
+      { subject: t.subject.trim(), message: t.message.trim(), category: t.category, source: 'tui' },
+      undefined,
+      'raw',
+    )
+    const id = (raw as { data?: { id?: unknown } } | undefined)?.data?.id
+    return typeof id === 'string' ? id : null
   }
 
   async requestScan(repositoryId: string, scanType: string = 'app'): Promise<void> {

@@ -21,6 +21,8 @@ const KEYBINDINGS = [
   [':scan', 'Trigger a repository scan'],
   [':theme dark|light|plexicus', 'Switch UI theme'],
   [':config set <key> <value>', 'Set a config value'],
+  [':pentests', 'AI pentests, read-only (if available)'],
+  [':credits', 'Remaining AI credits (if available)'],
   [':help / :?', 'Show keybindings help'],
 ]
 
